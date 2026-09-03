@@ -9,6 +9,7 @@ use App\Models\PublishingTarget;
 use App\Models\User;
 use App\PublicationStatus;
 use App\PublishingProtocol;
+use App\Services\WordPressConnectionTester;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -37,11 +38,30 @@ class PublishingTargetController extends Controller
         return view('publishing-targets.create', $this->formOptions($user));
     }
 
-    public function store(StorePublishingTargetRequest $request): RedirectResponse
+    public function store(StorePublishingTargetRequest $request, WordPressConnectionTester $connectionTester): RedirectResponse
     {
-        PublishingTarget::query()->create($request->validated());
+        $data = $request->validated();
+        $shouldTestConnection = $data['test_connection'] ?? false;
+        unset($data['test_connection']);
 
-        return redirect()->route('publishing-targets.index')->with('success', 'WordPress yayın hedefi oluşturuldu.');
+        if ($shouldTestConnection) {
+            $result = $connectionTester->test(
+                $data['base_url'],
+                PublishingProtocol::from($data['protocol']),
+                $data['username'],
+                $data['credential'],
+            );
+
+            if (! $result['successful']) {
+                return back()->withInput()->withErrors(['connection' => $result['message']]);
+            }
+        }
+
+        PublishingTarget::query()->create($data);
+
+        return redirect()->route('publishing-targets.index')->with('success', $shouldTestConnection
+            ? 'WordPress bağlantısı doğrulandı ve yayın hedefi oluşturuldu.'
+            : 'WordPress yayın hedefi oluşturuldu.');
     }
 
     public function edit(Request $request, PublishingTarget $publishingTarget): View

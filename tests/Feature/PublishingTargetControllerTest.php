@@ -7,6 +7,7 @@ use App\Models\PublishingTarget;
 use App\Models\User;
 use App\PublishingProtocol;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class PublishingTargetControllerTest extends TestCase
@@ -56,6 +57,37 @@ class PublishingTargetControllerTest extends TestCase
 
         $this->actingAs($owner)->post(route('publishing-targets.store'), $this->payload($agency->id, ['base_url' => 'http://127.0.0.1']))->assertSessionHasErrors('base_url');
         $this->actingAs($owner)->post(route('publishing-targets.store'), $this->payload($agency->id, ['base_url' => 'http://wordpress.local']))->assertSessionHasErrors('base_url');
+        $this->assertDatabaseCount('publishing_targets', 0);
+    }
+
+    public function test_target_can_be_verified_directly_with_wordpress_before_it_is_saved(): void
+    {
+        Http::fake([
+            'https://news.example.com/wp-json/wp/v2/users/me*' => Http::response(['id' => 7]),
+        ]);
+        $agency = Agency::factory()->create();
+        $owner = User::factory()->agencyOwner()->for($agency)->create();
+
+        $this->actingAs($owner)->post(route('publishing-targets.store'), $this->payload($agency->id, [
+            'test_connection' => '1',
+        ]))->assertRedirect(route('publishing-targets.index'));
+
+        $this->assertDatabaseCount('publishing_targets', 1);
+        Http::assertSent(fn ($request): bool => $request->url() === 'https://news.example.com/wp-json/wp/v2/users/me?context=edit');
+    }
+
+    public function test_failed_wordpress_verification_does_not_save_the_target(): void
+    {
+        Http::fake([
+            'https://news.example.com/wp-json/wp/v2/users/me*' => Http::response([], 401),
+        ]);
+        $agency = Agency::factory()->create();
+        $owner = User::factory()->agencyOwner()->for($agency)->create();
+
+        $this->actingAs($owner)->post(route('publishing-targets.store'), $this->payload($agency->id, [
+            'test_connection' => '1',
+        ]))->assertSessionHasErrors('connection');
+
         $this->assertDatabaseCount('publishing_targets', 0);
     }
 

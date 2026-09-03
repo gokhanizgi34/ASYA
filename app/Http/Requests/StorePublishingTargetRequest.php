@@ -32,6 +32,7 @@ class StorePublishingTargetRequest extends FormRequest
             'default_tag_ids' => ['nullable', 'array', 'max:100'],
             'default_tag_ids.*' => ['integer', 'min:1', 'distinct'],
             'is_active' => ['required', 'boolean'],
+            'test_connection' => ['nullable', 'boolean'],
         ];
     }
 
@@ -65,6 +66,7 @@ class StorePublishingTargetRequest extends FormRequest
             'default_category_ids' => $this->parseIds($this->input('default_category_ids')),
             'default_tag_ids' => $this->parseIds($this->input('default_tag_ids')),
             'is_active' => $this->boolean('is_active'),
+            'test_connection' => $this->boolean('test_connection'),
         ]);
     }
 

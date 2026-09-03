@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['agency_id', 'created_by', 'updated_by', 'forecast_date', 'sign', 'status', 'general', 'love', 'career', 'money', 'health', 'lucky_color', 'lucky_number', 'published_at'])]
+#[Fillable(['agency_id', 'created_by', 'updated_by', 'forecast_date', 'sign', 'symbol', 'status', 'general', 'traits', 'rising', 'love', 'career', 'money', 'health', 'seo_title', 'seo_description', 'seo_keywords', 'lucky_color', 'lucky_number', 'published_at'])]
 class HoroscopeForecast extends Model
 {
     /** @use HasFactory<HoroscopeForecastFactory> */
@@ -43,6 +43,6 @@ class HoroscopeForecast extends Model
     /** @return array<string, string> */
     protected function casts(): array
     {
-        return ['forecast_date' => 'date:Y-m-d', 'sign' => ZodiacSign::class, 'status' => HoroscopeStatus::class, 'lucky_number' => 'integer', 'published_at' => 'datetime'];
+        return ['forecast_date' => 'date:Y-m-d', 'sign' => ZodiacSign::class, 'status' => HoroscopeStatus::class, 'lucky_number' => 'integer', 'seo_keywords' => 'array', 'published_at' => 'datetime'];
     }
 }

@@ -18,7 +18,7 @@ class HoroscopeAiWriter
         private readonly ExternalUrlGuard $urlGuard,
     ) {}
 
-    /** @return array<string, array{general: string, love: string, career: string, money: string, health: string, lucky_color: string, lucky_number: int}> */
+    /** @return array<string, array{general: string, traits: string, rising: string, love: string, career: string, money: string, health: string, lucky_color: string, lucky_number: int}> */
     public function write(int $agencyId, CarbonInterface $date): array
     {
         $lastError = 'Aktif ve uyumlu bir AI sağlayıcısı bulunamadı.';
@@ -77,7 +77,7 @@ class HoroscopeAiWriter
     {
         $signs = collect(ZodiacSign::cases())->map(fn (ZodiacSign $sign): string => $sign->value.'='.$sign->label())->implode(', ');
 
-        return $date->format('d.m.Y').' tarihi için Türkçe günlük burç yorumları üret. Metinler birbirinden özgün, akıcı ve eğlence amaçlı olsun; kesin sağlık, yatırım veya kader iddiası verme. Her alan 2-3 anlamlı cümle içersin. Yalnızca saf JSON döndür. Burçlar: '.$signs.'. Şema: {"forecasts":[{"sign":"aries","general":"...","love":"...","career":"...","money":"...","health":"...","lucky_color":"...","lucky_number":1}]}';
+        return $date->format('d.m.Y').' tarihi için Türkçe günlük burç yorumları üret. Metinler birbirinden özgün, akıcı ve eğlence amaçlı olsun; kesin sağlık, yatırım veya kader iddiası verme. Her alan 2-3 anlamlı cümle içersin. traits alanında burcun temel özelliklerini, rising alanında yükselen etkisini açıkla. Yalnızca saf JSON döndür. Burçlar: '.$signs.'. Şema: {"forecasts":[{"sign":"aries","general":"...","traits":"...","rising":"...","love":"...","career":"...","money":"...","health":"...","lucky_color":"...","lucky_number":1}]}';
     }
 
     /** @return array<string, mixed> */
@@ -105,7 +105,11 @@ class HoroscopeAiWriter
                 throw new RuntimeException($sign->label().' burcu AI yanıtında bulunamadı.');
             }
 
-            foreach (['general', 'love', 'career', 'money', 'health'] as $field) {
+            foreach (['general', 'traits', 'rising', 'love', 'career', 'money', 'health'] as $field) {
+                if (in_array($field, ['traits', 'rising'], true) && blank($row[$field] ?? null)) {
+                    continue;
+                }
+
                 if (Str::length(Str::squish((string) ($row[$field] ?? ''))) < 35) {
                     throw new RuntimeException($sign->label().' burcunun '.$field.' alanı yetersiz.');
                 }
@@ -113,6 +117,8 @@ class HoroscopeAiWriter
 
             $result[$sign->value] = [
                 'general' => Str::squish((string) $row['general']),
+                'traits' => Str::squish((string) ($row['traits'] ?? 'Bu burcun temel özellikleri günlük yorumla birlikte değerlendirilmelidir.')),
+                'rising' => Str::squish((string) ($row['rising'] ?? 'Yükselen burcun etkisi kişisel doğum haritasına göre farklılık gösterebilir.')),
                 'love' => Str::squish((string) $row['love']),
                 'career' => Str::squish((string) $row['career']),
                 'money' => Str::squish((string) $row['money']),

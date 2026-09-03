@@ -26,4 +26,14 @@ enum ZodiacSign: string
             self::Capricorn => 'Oğlak', self::Aquarius => 'Kova', self::Pisces => 'Balık',
         };
     }
+
+    public function symbol(): string
+    {
+        return match ($this) {
+            self::Aries => '♈', self::Taurus => '♉', self::Gemini => '♊',
+            self::Cancer => '♋', self::Leo => '♌', self::Virgo => '♍',
+            self::Libra => '♎', self::Scorpio => '♏', self::Sagittarius => '♐',
+            self::Capricorn => '♑', self::Aquarius => '♒', self::Pisces => '♓',
+        };
+    }
 }

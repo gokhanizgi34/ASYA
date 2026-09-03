@@ -54,6 +54,12 @@ class HoroscopeDayBuilderTest extends TestCase
         $this->assertDatabaseCount('horoscope_forecasts', 12);
         $this->assertSame(12, HoroscopeForecast::query()->distinct()->count('sign'));
         $this->assertNotNull(HoroscopeForecast::query()->firstOrFail()->general);
+        $forecast = HoroscopeForecast::query()->where('sign', ZodiacSign::Gemini)->firstOrFail();
+        $this->assertSame('♊', $forecast->symbol);
+        $this->assertStringContainsString('İkizler burcu', $forecast->seo_title);
+        $this->assertContains('İkizler yükseleni', $forecast->seo_keywords);
+        $this->assertNotEmpty($forecast->traits);
+        $this->assertNotEmpty($forecast->rising);
         Http::assertSentCount(1);
     }
 }

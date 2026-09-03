@@ -33,13 +33,21 @@ class HoroscopeDayBuilder
                 return $existing->get($sign->value);
             }
 
+            $title = $sign->label().' burcu '.$date->format('d.m.Y').' '.$date->translatedFormat('l').' yorumu ve burç özellikleri';
+
             return HoroscopeForecast::query()->create([
                 'agency_id' => $agencyId,
                 'forecast_date' => $date->toDateString(),
                 'sign' => $sign,
+                'symbol' => $sign->symbol(),
                 'created_by' => $user->id,
                 'updated_by' => $user->id,
                 'status' => HoroscopeStatus::Draft,
+                'traits' => $generated[$sign->value]['traits'] ?? $sign->label().' burcunun temel özellikleri günlük koşullara göre farklı biçimde öne çıkabilir.',
+                'rising' => $generated[$sign->value]['rising'] ?? 'Yükselen burcun etkisi kişisel doğum haritasına göre değişebilir.',
+                'seo_title' => $title,
+                'seo_description' => $sign->label().' burcu için '.$date->format('d.m.Y').' tarihli günlük yorum, burç özellikleri, yükselen etkileri ve şanslı detaylar.',
+                'seo_keywords' => [$sign->label().' burcu', 'günlük '.$sign->label().' burç yorumu', $sign->label().' burcu özellikleri', $sign->label().' yükseleni'],
                 ...$generated[$sign->value],
             ]);
         })->all(), 3);

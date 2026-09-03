@@ -62,6 +62,24 @@ class ApiIntegrationControllerTest extends TestCase
         $this->assertNotSame('k', DB::table('api_integrations')->value('credential'));
     }
 
+    public function test_deleted_gemini_integration_can_be_added_again(): void
+    {
+        $agency = Agency::factory()->create();
+        $owner = User::factory()->agencyOwner()->for($agency)->create();
+        $deleted = ApiIntegration::factory()->ai(IntegrationProvider::GoogleGemini)->for($agency)->create(['name' => 'Google Gemini']);
+        $deleted->delete();
+
+        $this->actingAs($owner)->post(route('api-integrations.store'), [
+            'provider' => IntegrationProvider::GoogleGemini->value,
+            'credential' => 'new-gemini-key',
+        ])->assertRedirect(route('api-integrations.index'));
+
+        $integration = ApiIntegration::withTrashed()->whereKey($deleted->id)->firstOrFail();
+        $this->assertFalse($integration->trashed());
+        $this->assertSame('new-gemini-key', $integration->credential);
+        $this->assertSame(IntegrationProvider::GoogleGemini, $integration->provider);
+    }
+
     public function test_owner_can_create_x_trends_integration_with_only_api_token(): void
     {
         $agency = Agency::factory()->create();

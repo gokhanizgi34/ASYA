@@ -27,7 +27,7 @@ class StoreApiIntegrationRequest extends FormRequest
 
         return [
             'agency_id' => ['required', 'integer', Rule::exists('agencies', 'id')->where('is_active', true)],
-            'name' => ['required', 'string', 'max:150', Rule::unique('api_integrations', 'name')->where(fn ($query) => $query->where('agency_id', $this->input('agency_id')))->ignore($this->integrationForUniqueRule())],
+            'name' => ['required', 'string', 'max:150', Rule::unique('api_integrations', 'name')->where(fn ($query) => $query->where('agency_id', $this->input('agency_id')))->withoutTrashed()->ignore($this->integrationForUniqueRule())],
             'provider' => ['required', Rule::enum(IntegrationProvider::class)],
             'model' => [Rule::requiredIf($provider?->isAi() === true), 'nullable', 'string', 'max:150'],
             'priority' => ['required', 'integer', 'between:1,100'],

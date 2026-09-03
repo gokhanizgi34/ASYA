@@ -108,6 +108,18 @@ class ApiIntegrationController extends Controller
                 return $integration->refresh();
             }
 
+            $deletedIntegration = ApiIntegration::withTrashed()
+                ->where('agency_id', $data['agency_id'])
+                ->where('name', $data['name'])
+                ->first();
+
+            if ($deletedIntegration?->trashed()) {
+                $deletedIntegration->restore();
+                $deletedIntegration->update($data);
+
+                return $deletedIntegration->refresh();
+            }
+
             return ApiIntegration::query()->create($data);
         });
     }

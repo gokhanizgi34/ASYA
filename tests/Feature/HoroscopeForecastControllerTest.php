@@ -32,6 +32,17 @@ class HoroscopeForecastControllerTest extends TestCase
         $this->actingAs($editor)->get(route('horoscopes.edit', $other))->assertForbidden();
     }
 
+    public function test_missing_ai_integration_returns_a_form_error_instead_of_server_error(): void
+    {
+        $agency = Agency::factory()->create();
+        $editor = User::factory()->editor()->for($agency)->create();
+
+        $this->actingAs($editor)->post(route('horoscopes.day'), [
+            'agency_id' => $agency->id,
+            'forecast_date' => today()->toDateString(),
+        ])->assertRedirect()->assertSessionHasErrors('agency_id');
+    }
+
     public function test_editor_can_publish_complete_forecast(): void
     {
         $agency = Agency::factory()->create();

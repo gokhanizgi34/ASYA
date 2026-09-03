@@ -1,0 +1,3 @@
+<x-layouts.app title="Kullanıcı düzenle">
+    <section class="mx-auto max-w-3xl"><p class="text-sm font-bold tracking-[.18em] text-cyan-300">KULLANICI YÖNETİMİ</p><h1 class="mt-3 text-4xl font-black">{{ $user->name }}</h1><div class="mt-8 rounded-2xl border border-white/10 bg-white/[.04] p-6 sm:p-8"><form method="POST" action="{{ route('users.update', $user) }}">@csrf @method('PUT') @include('users._form', ['submitLabel' => 'Değişiklikleri kaydet'])</form></div></section>
+</x-layouts.app>

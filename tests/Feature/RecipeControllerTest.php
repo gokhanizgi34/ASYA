@@ -2,15 +2,14 @@
 
 namespace Tests\Feature;
 
-use App\Models\Agency;
-use App\Models\Article;
-use App\Models\ApiIntegration;
-use App\Models\Recipe;
-use App\Models\User;
 use App\IntegrationAuthType;
 use App\IntegrationProvider;
+use App\Models\Agency;
+use App\Models\ApiIntegration;
+use App\Models\Article;
+use App\Models\Recipe;
+use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
-use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 

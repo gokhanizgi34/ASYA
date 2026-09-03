@@ -29,6 +29,7 @@ class StoreAgencyRequest extends FormRequest
             'province' => ['required', 'string', 'max:100'],
             'district' => ['required', 'string', 'max:100'],
             'category_name' => ['required', 'string', 'max:150'],
+            'recipe_daily_quota' => ['required', 'integer', 'between:1,100'],
             'logo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
             'is_active' => ['required', 'boolean'],
         ];
@@ -45,6 +46,7 @@ class StoreAgencyRequest extends FormRequest
             'province' => trim((string) $this->input('province')),
             'district' => trim((string) $this->input('district')),
             'category_name' => trim((string) ($this->input('category_name') ?: $this->input('district'))),
+            'recipe_daily_quota' => $this->integer('recipe_daily_quota', 4),
             'is_active' => $this->boolean('is_active'),
         ]);
 

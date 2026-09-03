@@ -22,6 +22,8 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('recipes', function (Blueprint $table): void {
+            $table->dropIndex(['origin']);
+            $table->dropIndex(['generated_at']);
             $table->dropForeign(['generated_for_agency_id']);
             $table->dropColumn(['origin', 'generated_for_agency_id', 'generated_at']);
         });

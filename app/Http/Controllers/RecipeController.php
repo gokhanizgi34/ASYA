@@ -12,6 +12,7 @@ use App\Models\Recipe;
 use App\Models\SeoAnalysis;
 use App\Models\User;
 use App\Models\VisualAsset;
+use App\Services\RecipeAiGenerator;
 use App\SourceTrustStatus;
 use App\VisualAssetStatus;
 use App\VisualSourceType;
@@ -21,7 +22,6 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
-use App\Services\RecipeAiGenerator;
 
 class RecipeController extends Controller
 {

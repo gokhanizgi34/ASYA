@@ -33,6 +33,7 @@ class UpdateAgencyRequest extends FormRequest
             'province' => ['nullable', 'string', 'max:100'],
             'district' => ['nullable', 'string', 'max:100'],
             'category_name' => ['nullable', 'string', 'max:150'],
+            'recipe_daily_quota' => ['nullable', 'integer', 'between:1,100'],
             'logo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
         ];
     }
@@ -47,6 +48,7 @@ class UpdateAgencyRequest extends FormRequest
             'province' => filled($this->input('province')) ? trim((string) $this->input('province')) : null,
             'district' => filled($this->input('district')) ? trim((string) $this->input('district')) : null,
             'category_name' => filled($this->input('category_name')) ? trim((string) $this->input('category_name')) : null,
+            'recipe_daily_quota' => filled($this->input('recipe_daily_quota')) ? $this->integer('recipe_daily_quota') : null,
         ]);
     }
 }

@@ -5,7 +5,6 @@ namespace App\Services;
 use App\IntegrationProvider;
 use App\Models\ApiIntegration;
 use App\Models\Recipe;
-use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use RuntimeException;

@@ -23,7 +23,6 @@ class NewsContentExtractor
 
     public function __construct(
         private readonly ExternalUrlGuard $urlGuard,
-        private readonly NewsVisualFallback $visualFallback,
         private readonly NativeTlsHttpFetcher $nativeTlsFetcher,
     ) {}
 
@@ -98,14 +97,12 @@ class NewsContentExtractor
         $items = $this->crawlHtml($url, $body);
 
         if ($items === []) {
-            $items = $this->visualFallback->extract($agencyId, $url, $body);
-
             return [
-                'items' => $this->filterRecentItems($items),
-                'method' => 'visual_ai_ocr',
+                'items' => [],
+                'method' => 'html_dom_crawl_empty',
                 'url' => $url,
                 'status' => $response->status(),
-                'fingerprint' => $this->fingerprint($items),
+                'fingerprint' => $this->fingerprint([], $body),
                 'crawled_pages' => 1,
             ];
         }

@@ -8,7 +8,6 @@ use App\Models\RawNewsItem;
 use App\Models\User;
 use App\RawNewsStatus;
 use App\Services\NativeTlsHttpFetcher;
-use App\Services\NewsVisualFallback;
 use GuzzleHttp\Psr7\Response as PsrResponse;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
@@ -241,7 +240,7 @@ XML;
         $this->assertSame(2, $source->last_crawled_pages);
     }
 
-    public function test_visual_ai_fallback_is_used_only_after_static_methods_fail(): void
+    public function test_visual_ai_fallback_is_disabled_when_static_methods_fail(): void
     {
         Http::preventStrayRequests();
         Http::fake([
@@ -252,26 +251,12 @@ XML;
         $agency = Agency::factory()->create();
         $editor = User::factory()->editor()->for($agency)->create();
         $source = NewsSource::factory()->for($agency)->create(['feed_url' => 'https://93.184.216.34/haberler']);
-        $this->mock(NewsVisualFallback::class, function ($mock) use ($agency): void {
-            $mock->shouldReceive('extract')
-                ->once()
-                ->with($agency->id, 'https://93.184.216.34/haberler', '<html><body><div>Dinamik haber alanı</div></body></html>')
-                ->andReturn([[
-                    'external_id' => 'visual-1',
-                    'title' => 'Görüntüden doğrulanan son dakika haberi',
-                    'body' => 'Ekran görüntüsünde açıkça görülen ve yapay zekâ tarafından metne çevrilen haber özeti.',
-                    'url' => 'https://93.184.216.34/haberler',
-                    'image_url' => null,
-                    'published_at' => Carbon::parse('2026-08-30 14:00:00'),
-                ]]);
-        });
-
         $this->actingAs($editor)->post(route('source-trust.sources.import', $source))
             ->assertRedirect()
-            ->assertSessionHas('success', fn (string $message): bool => str_contains($message, 'Ekran görüntüsü / yapay zekâ'));
+            ->assertSessionHas('success', fn (string $message): bool => str_contains($message, '0 yeni haber'));
 
-        $this->assertDatabaseHas('raw_news_items', ['original_title' => 'Görüntüden doğrulanan son dakika haberi']);
-        $this->assertSame('visual_ai_ocr', $source->refresh()->last_ingestion_method);
+        $this->assertDatabaseCount('raw_news_items', 0);
+        $this->assertSame('html_dom_crawl_empty', $source->refresh()->last_ingestion_method);
     }
 
     public function test_htmx_fragments_are_expanded_before_visual_ai_fallback(): void

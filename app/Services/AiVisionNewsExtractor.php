@@ -7,7 +7,6 @@ use App\Models\ApiIntegration;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
-use Throwable;
 
 class AiVisionNewsExtractor
 {
@@ -19,29 +18,7 @@ class AiVisionNewsExtractor
     /** @return array<int, array<string, mixed>> */
     public function extract(int $agencyId, string $imagePath): array
     {
-        $image = file_get_contents($imagePath);
-
-        if ($image === false || $image === '') {
-            throw new RuntimeException('Haber ekran görüntüsü okunamadı.');
-        }
-
-        $dataUrl = 'data:image/png;base64,'.base64_encode($image);
-        $lastError = 'Aktif ve görsel okuyabilen yapay zekâ entegrasyonu bulunamadı.';
-
-        foreach ($this->registry->forAgency($agencyId) as $integration) {
-            try {
-                $text = $this->request($integration, $dataUrl);
-                $records = $this->decodeRecords($text);
-
-                if ($records !== []) {
-                    return array_slice($records, 0, 20);
-                }
-            } catch (Throwable $exception) {
-                $lastError = $integration->name.': '.$exception->getMessage();
-            }
-        }
-
-        throw new RuntimeException('Görsel haber okuma tamamlanamadı. '.$lastError);
+        throw new RuntimeException('Görsel AI kullanımı kapalıdır; yapay zekâ yalnızca metin işlemek için kullanılabilir.');
     }
 
     private function request(ApiIntegration $integration, string $dataUrl): string

@@ -33,7 +33,7 @@ class SpecialDayAiPlanner
                     $lastError = $integration->name.': '.$exception->getMessage();
                 }
             }
-            throw new RuntimeException($year.' özel gün takvimi üretilemedi. '.$lastError);
+            $result = [...$result, ...$this->fallback($year)];
         }
 
         return $result;
@@ -88,7 +88,8 @@ class SpecialDayAiPlanner
                 return null;
             }
             try {
-                $eventDate = CarbonImmutable::createFromFormat('!Y-m-d', (string) ($row['date'] ?? ''));
+                $rawDate = (string) ($row['date'] ?? $row['event_date'] ?? '');
+                $eventDate = CarbonImmutable::parse($rawDate);
             } catch (Throwable) {
                 return null;
             }
@@ -108,5 +109,31 @@ class SpecialDayAiPlanner
         }
 
         return $rows;
+    }
+
+    /** @return array<int, array{event_date: string, content_due_at: string, title: string, seo_topics: array<int, string>, ai_provider: string}> */
+    private function fallback(int $year): array
+    {
+        $events = [
+            ['01-01', 'Yılbaşı'],
+            ['04-23', 'Ulusal Egemenlik ve Çocuk Bayramı'],
+            ['05-01', 'Emek ve Dayanışma Günü'],
+            ['05-19', 'Atatürk\'ü Anma, Gençlik ve Spor Bayramı'],
+            ['07-15', 'Demokrasi ve Millî Birlik Günü'],
+            ['08-30', 'Zafer Bayramı'],
+            ['10-29', 'Cumhuriyet Bayramı'],
+        ];
+
+        return collect($events)->map(function (array $event) use ($year): array {
+            $date = CarbonImmutable::create($year, (int) substr($event[0], 0, 2), (int) substr($event[0], 3, 2));
+
+            return [
+                'event_date' => $date->toDateString(),
+                'content_due_at' => $date->subDays(14)->toDateString(),
+                'title' => $event[1],
+                'seo_topics' => [$event[1].' ne zaman', $year.' '.$event[1]],
+                'ai_provider' => 'Yerel resmi takvim',
+            ];
+        })->all();
     }
 }

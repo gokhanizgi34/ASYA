@@ -2,11 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\IntegrationProvider;
 use App\Models\Agency;
+use App\Models\ApiIntegration;
 use App\Models\EditorialCalendarEvent;
 use App\Models\User;
 use App\Services\SpecialDayAiPlanner;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Mockery\MockInterface;
 use Tests\TestCase;
 
@@ -45,5 +48,18 @@ class EditorialCalendarGenerationTest extends TestCase
         $user = User::factory()->editor()->for($agency)->create();
         $this->actingAs($user)->post(route('editorial-calendar.generate'), ['agency_id' => $other->id, 'start_year' => now()->year, 'years' => 1])->assertSessionHasErrors('agency_id');
         $this->assertDatabaseCount('editorial_calendar_events', 0);
+    }
+
+    public function test_invalid_ai_calendar_response_uses_official_local_fallback(): void
+    {
+        Http::fake(['https://93.184.216.34/v1/chat/completions' => Http::response(['choices' => [['message' => ['content' => '{"events":[]}']]]])]);
+        $agency = Agency::factory()->create();
+        $integration = ApiIntegration::factory()->for($agency)->create(['provider' => IntegrationProvider::OpenAi, 'base_url' => 'https://93.184.216.34/v1/models', 'credential' => 'calendar-key']);
+
+        $events = app(SpecialDayAiPlanner::class)->plan($agency->id, 2026, 1);
+
+        $this->assertCount(7, $events);
+        $this->assertSame('Yerel resmi takvim', $events[0]['ai_provider']);
+        Http::assertSentCount(1);
     }
 }

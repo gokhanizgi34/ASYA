@@ -35,15 +35,25 @@ class AiProviderConnectionTest extends TestCase
     {
         $integration = ApiIntegration::factory()->ai(IntegrationProvider::GoogleGemini)->create([
             'base_url' => 'https://93.184.216.34/v1beta/models',
+            'model' => 'gemini-3.5-flash-lite',
             'credential' => 'gemini-secret',
         ]);
         Http::preventStrayRequests();
-        Http::fake(['https://93.184.216.34/*' => Http::response(['models' => []])]);
+        Http::fake([
+            'https://93.184.216.34/*' => Http::response([
+                'candidates' => [[
+                    'content' => [
+                        'parts' => [['text' => '{"ok":true}']],
+                    ],
+                ]],
+            ]),
+        ]);
 
         $successful = app(ApiIntegrationTester::class)->test($integration);
 
         $this->assertTrue($successful);
-        Http::assertSent(fn (Request $request): bool => $request->url() === 'https://93.184.216.34/v1beta/models?key=gemini-secret');
+        Http::assertSent(fn (Request $request): bool => $request->url() === 'https://93.184.216.34/v1beta/models/gemini-3.5-flash-lite:generateContent?key=gemini-secret'
+            && $request->method() === 'POST');
         $this->assertStringNotContainsString('gemini-secret', (string) LearnedRoute::query()->first()?->toJson());
     }
 

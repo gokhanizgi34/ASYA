@@ -7,6 +7,7 @@ use App\IntegrationProvider;
 use App\Models\ApiIntegration;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Throwable;
@@ -38,9 +39,20 @@ class ApiIntegrationTester
             $testUrl = $integration->provider === IntegrationProvider::XTrends
                 ? rtrim($integration->base_url, '/').'/'.(int) config('services.external_trends.x_woeid', 23424969)
                 : ($integration->provider === IntegrationProvider::GitHubModels ? rtrim($integration->base_url, '/').'/chat/completions' : $integration->base_url);
+
+            if ($integration->provider === IntegrationProvider::GoogleGemini) {
+                $root = preg_replace('~/models(?:\\?.*)?$~', '', rtrim($integration->base_url, '/')) ?: '';
+                $testUrl = $root.'/models/'.rawurlencode((string) $integration->model).':generateContent';
+            }
+
             $this->urlGuard->assertSafe($testUrl);
 
-            if ($integration->provider === IntegrationProvider::GitHubModels) {
+            if ($integration->provider === IntegrationProvider::GoogleGemini) {
+                $response = $this->request($integration)->post($testUrl, [
+                    'generationConfig' => ['responseMimeType' => 'application/json', 'maxOutputTokens' => 2],
+                    'contents' => [['role' => 'user', 'parts' => [['text' => 'Yalnızca {"ok":true} JSON yanıtı ver.']]]],
+                ]);
+            } elseif ($integration->provider === IntegrationProvider::GitHubModels) {
                 $response = $this->request($integration)->post($testUrl, ['model' => $integration->model, 'messages' => [['role' => 'user', 'content' => 'Reply with OK.']], 'max_tokens' => 2]);
             } else {
                 $response = $this->request($integration)->get($testUrl, $integration->provider === IntegrationProvider::XTrends ? ['max_trends' => 1] : []);
@@ -52,7 +64,7 @@ class ApiIntegrationTester
                 'last_tested_at' => now(),
                 'last_status_code' => $response->status(),
                 'last_response_time_ms' => $elapsed,
-                'last_error' => $successful ? null : 'Uzak servis HTTP '.$response->status().' durum kodu döndürdü.',
+                'last_error' => $successful ? null : $this->errorMessage($response),
             ]);
             $this->routeMethodLearner->observe(
                 $integration->agency_id,
@@ -112,5 +124,14 @@ class ApiIntegrationTester
     private function elapsedMilliseconds(int $startedAt): int
     {
         return max(0, (int) round((hrtime(true) - $startedAt) / 1_000_000));
+    }
+
+    private function errorMessage(Response $response): string
+    {
+        $message = $response->json('error.message');
+
+        return is_string($message) && $message !== ''
+            ? 'Gemini: '.Str::limit($message, 900)
+            : 'Uzak servis HTTP '.$response->status().' durum kodu döndürdü.';
     }
 }

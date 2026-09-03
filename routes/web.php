@@ -51,6 +51,7 @@ use App\Http\Controllers\PublishingTargetController;
 use App\Http\Controllers\RawNewsAllActionController;
 use App\Http\Controllers\RawNewsBulkActionController;
 use App\Http\Controllers\RawNewsItemController;
+use App\Http\Controllers\RecipeController;
 use App\Http\Controllers\ScheduleEntryController;
 use App\Http\Controllers\ScheduleEntryStatusController;
 use App\Http\Controllers\SeoAnalysisController;
@@ -106,6 +107,10 @@ Route::middleware(['auth', EnsureUserIsActive::class, ApplySystemSettings::class
         ->parameters(['haberler' => 'article'])
         ->names('articles');
 
+    Route::post('/tarifler/{recipe}/yayin-merkezine-gonder', [RecipeController::class, 'publish'])->name('recipes.publish');
+    Route::resource('tarifler', RecipeController::class)
+        ->parameters(['tarifler' => 'recipe'])
+        ->names('recipes');
 
     Route::post('/burclar/gun-hazirla', HoroscopeDayController::class)->name('horoscopes.day');
     Route::get('/burclar', [HoroscopeForecastController::class, 'index'])->name('horoscopes.index');

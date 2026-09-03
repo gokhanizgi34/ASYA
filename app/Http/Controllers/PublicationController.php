@@ -49,7 +49,10 @@ class PublicationController extends Controller
         $user = $request->user();
         abort_unless($user instanceof User, 401);
 
-        return view('publications.create', $this->formOptions($user));
+        return view('publications.create', [
+            ...$this->formOptions($user),
+            'selectedArticleId' => $request->integer('article_id') ?: null,
+        ]);
     }
 
     public function store(StorePublicationRequest $request, PublicationCreator $creator): RedirectResponse

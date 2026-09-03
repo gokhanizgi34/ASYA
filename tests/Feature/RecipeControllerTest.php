@@ -4,9 +4,14 @@ namespace Tests\Feature;
 
 use App\Models\Agency;
 use App\Models\Article;
+use App\Models\ApiIntegration;
 use App\Models\Recipe;
 use App\Models\User;
+use App\IntegrationAuthType;
+use App\IntegrationProvider;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class RecipeControllerTest extends TestCase
@@ -51,5 +56,18 @@ class RecipeControllerTest extends TestCase
         $this->assertSame('recipe', data_get($article->editorial_metadata, 'content_type'));
         $this->assertNotNull($article->seoAnalysis);
         $this->assertSame('ASYA Tarif Havuzu', $article->source_name);
+    }
+
+    public function test_owner_can_manually_generate_four_text_recipes_and_quota_blocks_second_run(): void
+    {
+        Http::fake(['https://93.184.216.34/v1/chat/completions' => Http::response(['choices' => [['message' => ['content' => json_encode(['recipes' => collect(['main', 'cold', 'salad', 'dessert'])->map(fn (string $category): array => ['category' => $category, 'title' => $category.' tarifi', 'ingredients' => 'Sebze, baharat, yağ ve temel malzemeler', 'instructions' => 'Malzemeleri hazırlayın, pişirin ve servis edin.'])->all()], JSON_UNESCAPED_UNICODE)]]]])]);
+        $agency = Agency::factory()->create(['recipe_daily_quota' => 4]);
+        $owner = User::factory()->agencyOwner()->for($agency)->create();
+        ApiIntegration::factory()->for($agency)->create(['provider' => IntegrationProvider::OpenAi, 'base_url' => 'https://93.184.216.34/v1/models', 'auth_type' => IntegrationAuthType::Bearer, 'credential' => 'recipe-key', 'is_active' => true]);
+
+        $this->actingAs($owner)->post(route('recipes.generate'))->assertRedirect()->assertSessionHas('success');
+        $this->assertDatabaseCount('recipes', 4);
+        $this->actingAs($owner)->post(route('recipes.generate'))->assertRedirect()->assertSessionHasErrors('recipe_generation');
+        Http::assertSentCount(1);
     }
 }

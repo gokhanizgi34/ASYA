@@ -50,14 +50,15 @@ class NewsFeedImporter
         $itemIds = [];
 
         foreach (array_slice($items, 0, min(50, $remaining)) as $item) {
-            $checksum = hash('sha256', Str::lower($item['url'] ?: $source->domain).'|'.Str::lower($item['title']));
+            $normalizedTitle = $this->normalizeTitle($item['title'], $source);
+            $checksum = hash('sha256', Str::lower($source->domain).'|'.Str::lower($normalizedTitle));
 
             $existingItem = RawNewsItem::withTrashed()
                 ->where('agency_id', $source->agency_id)
                 ->where('checksum', $checksum)
                 ->first();
 
-            if (! $existingItem && $this->duplicateDetector->exists($source->agency_id, $item['title'])) {
+            if (! $existingItem && $this->duplicateDetector->exists($source->agency_id, $normalizedTitle)) {
                 $skipped++;
 
                 continue;
@@ -93,7 +94,7 @@ class NewsFeedImporter
                     'external_id' => $item['external_id'],
                     'source_name' => $source->name,
                     'source_url' => $item['url'],
-                    'original_title' => $item['title'],
+                    'original_title' => $normalizedTitle,
                     'original_body' => $item['body'],
                     'original_image_url' => $item['image_url'],
                     'status' => $blacklist['blocked'] ? RawNewsStatus::Rejected : ($blacklist['requires_review'] ? RawNewsStatus::Review : RawNewsStatus::Pending),
@@ -117,7 +118,7 @@ class NewsFeedImporter
                 'external_id' => $item['external_id'],
                 'source_name' => $source->name,
                 'source_url' => $item['url'],
-                'original_title' => $item['title'],
+                'original_title' => $normalizedTitle,
                 'original_body' => $item['body'],
                 'original_image_url' => $item['image_url'],
                 'language' => 'tr',
@@ -175,5 +176,17 @@ class NewsFeedImporter
                 'failure_message' => $exception->getMessage(),
             ])->save();
         }
+    }
+
+    private function normalizeTitle(string $title, NewsSource $source): string
+    {
+        $title = Str::of(strip_tags($title))->squish()->trim()->toString();
+        $brand = preg_quote($source->name, '/');
+        $domain = preg_quote(str_replace(['www.', '.com', '.net', '.org', '.tr'], '', $source->domain), '/');
+
+        $title = preg_replace('/\s*[-|–—]\s*(?:'.$brand.'|'.$domain.')(?:\s+[^-|–—]{0,80})?\s*$/iu', '', $title) ?? $title;
+        $title = preg_replace('/\s+(?:haberleri|son dakika|gündem|spor|magazin)\s*$/iu', '', $title) ?? $title;
+
+        return Str::of($title)->squish()->limit(500, '')->toString();
     }
 }

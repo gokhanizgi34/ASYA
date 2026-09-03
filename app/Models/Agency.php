@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['name', 'slug', 'contact_email', 'phone', 'subscription_starts_at', 'subscription_ends_at', 'trial_ends_at', 'province', 'district', 'category_name', 'logo_path', 'is_active'])]
+#[Fillable(['name', 'slug', 'contact_email', 'phone', 'subscription_starts_at', 'subscription_ends_at', 'trial_ends_at', 'province', 'district', 'category_name', 'logo_path', 'recipe_daily_quota', 'is_active'])]
 class Agency extends Model
 {
     /** @use HasFactory<AgencyFactory> */
@@ -39,6 +39,7 @@ class Agency extends Model
             'subscription_starts_at' => 'date',
             'subscription_ends_at' => 'date',
             'trial_ends_at' => 'date',
+            'recipe_daily_quota' => 'integer',
             'is_active' => 'boolean',
         ];
     }

@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
+use App\Services\RecipeAiGenerator;
 
 class RecipeController extends Controller
 {
@@ -47,6 +48,23 @@ class RecipeController extends Controller
         Recipe::query()->create($request->validated());
 
         return redirect()->route('recipes.index')->with('success', 'Tarif havuzuna eklendi.');
+    }
+
+    public function generate(Request $request, RecipeAiGenerator $generator): RedirectResponse
+    {
+        Gate::authorize('create', Recipe::class);
+        $user = $request->user();
+        abort_unless($user instanceof User, 401);
+        $agency = $user->isSystemAdministrator() ? Agency::query()->findOrFail($request->integer('agency_id')) : $user->agency;
+        abort_unless($agency instanceof Agency, 422, 'Tarif üretimi için aktif ajans bulunamadı.');
+
+        try {
+            $recipes = $generator->generate($agency->id, max(1, (int) $agency->recipe_daily_quota));
+        } catch (\RuntimeException $exception) {
+            return back()->withErrors(['recipe_generation' => $exception->getMessage()]);
+        }
+
+        return back()->with('success', count($recipes).' tarif AI ile oluşturuldu.');
     }
 
     public function show(Recipe $recipe): View

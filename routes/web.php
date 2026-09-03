@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Controllers\AdviceLetterController;
 use App\Http\Controllers\AgencyController;
 use App\Http\Controllers\AgencyMailSettingController;
 use App\Http\Controllers\AgencyMailTestController;
@@ -108,6 +107,7 @@ Route::middleware(['auth', EnsureUserIsActive::class, ApplySystemSettings::class
         ->names('articles');
 
     Route::post('/tarifler/{recipe}/yayin-merkezine-gonder', [RecipeController::class, 'publish'])->name('recipes.publish');
+    Route::post('/tarifler/uret', [RecipeController::class, 'generate'])->name('recipes.generate');
     Route::resource('tarifler', RecipeController::class)
         ->parameters(['tarifler' => 'recipe'])
         ->names('recipes');
@@ -117,10 +117,6 @@ Route::middleware(['auth', EnsureUserIsActive::class, ApplySystemSettings::class
     Route::get('/burclar/{horoscopeForecast}/duzenle', [HoroscopeForecastController::class, 'edit'])->name('horoscopes.edit');
     Route::put('/burclar/{horoscopeForecast}', [HoroscopeForecastController::class, 'update'])->name('horoscopes.update');
 
-    Route::resource('danisma-masasi', AdviceLetterController::class)
-        ->parameters(['danisma-masasi' => 'adviceLetter'])
-        ->only(['index', 'create', 'store', 'show', 'edit', 'update'])
-        ->names('advice-letters');
 
     Route::get('/ai-kose-yazarlari/taslaklar/yeni', [ColumnistDraftController::class, 'create'])->name('columnist-drafts.create');
     Route::post('/ai-kose-yazarlari/taslaklar', [ColumnistDraftController::class, 'store'])->name('columnist-drafts.store');

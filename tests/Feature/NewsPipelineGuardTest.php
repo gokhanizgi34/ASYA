@@ -34,6 +34,19 @@ class NewsPipelineGuardTest extends TestCase
         $this->assertTrue(app(NewsDuplicateDetector::class)->exists($agency->id, 'Pendik 6. Kahve Festivali başladı'));
     }
 
+    public function test_import_removes_source_branding_before_duplicate_check(): void
+    {
+        Http::fake([
+            'https://93.184.216.34/feed.xml' => Http::response('<rss><channel><item><title>Fenerbahçe ayrılığı resmen açıkladı - Fanatik Gazetesi Fenerbahçe Haberleri Spor</title><description>'.htmlspecialchars($this->sourceBody()).'</description><link>https://93.184.216.34/haber/1</link><pubDate>'.now()->toRfc2822String().'</pubDate></item></channel></rss>', 200, ['Content-Type' => 'application/rss+xml']),
+        ]);
+        $agency = Agency::factory()->create();
+        $source = NewsSource::factory()->for($agency)->create(['name' => 'Fanatik', 'domain' => 'fanatik.com', 'feed_url' => 'https://93.184.216.34/feed.xml', 'feed_format' => 'rss']);
+
+        app(NewsFeedImporter::class)->import($source);
+
+        $this->assertDatabaseHas('raw_news_items', ['original_title' => 'Fenerbahçe ayrılığı resmen açıkladı']);
+    }
+
     public function test_same_event_with_different_editorial_wording_is_detected(): void
     {
         $agency = Agency::factory()->create();

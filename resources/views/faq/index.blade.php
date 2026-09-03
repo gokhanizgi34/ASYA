@@ -5,7 +5,6 @@ $sections = [
 ['Haberler','Haber içeriklerini oluşturur, düzenler ve yayın öncesi yönetir.','Yeni haber ekleyin, başlık ve metni tamamlayın, durumunu kaydedin.'],
 ['SEO Analizi','Bir haberin arama motoru uygunluğunu ölçer ve iyileştirme önerileri verir.','Haber ayrıntısından SEO ekranını açıp analizi çalıştırın.'],
 ['Ham Haber Havuzu','Kaynaklardan gelen işlenmemiş haberleri toplar ve toplu işlem uygular.','Kayıtları filtreleyin; uygun olanları seçip işleme veya habere dönüştürün.'],
-['Çeviriler','Haberleri farklı dillere çevirir ve çeviri sürümlerini yönetir.','Kaynak haberi ve hedef dili seçin; sonucu kontrol edip kaydedin.'],
 ['Burçlar','Günlük burç içeriklerini hazırlar ve düzenler.','Günü hazırlayın, burç metinlerini gözden geçirip güncelleyin.'],
 ['Mukaddes Abla','Okur sorularını, yanıt taslaklarını ve yayın sürecini yönetir.','Yeni mektup ekleyin, yanıtı hazırlayın ve durumunu güncelleyin.'],
 ['AI Yazarlar','Yapay zekâ destekli köşe yazarı profilleri ve yazı taslakları oluşturur.','Yazar kişiliğini tanımlayın; konu verip taslak üretin ve editör kontrolünden geçirin.'],

@@ -15,7 +15,6 @@ use App\Http\Controllers\ApiIntegrationController;
 use App\Http\Controllers\ApiIntegrationTestController;
 use App\Http\Controllers\ArticleBulkActionController;
 use App\Http\Controllers\ArticleController;
-use App\Http\Controllers\ArticleTranslationController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\AuthorizationMatrixController;
 use App\Http\Controllers\BlacklistRuleController;
@@ -107,11 +106,6 @@ Route::middleware(['auth', EnsureUserIsActive::class, ApplySystemSettings::class
         ->parameters(['haberler' => 'article'])
         ->names('articles');
 
-    Route::get('/ceviriler', [ArticleTranslationController::class, 'index'])->name('translations.index');
-    Route::post('/ceviriler', [ArticleTranslationController::class, 'store'])->name('translations.store');
-    Route::get('/ceviriler/{articleTranslation}', [ArticleTranslationController::class, 'show'])->name('translations.show');
-    Route::put('/ceviriler/{articleTranslation}', [ArticleTranslationController::class, 'update'])->name('translations.update');
-    Route::post('/ceviriler/{articleTranslation}/yenile', [ArticleTranslationController::class, 'refresh'])->name('translations.refresh');
 
     Route::post('/burclar/gun-hazirla', HoroscopeDayController::class)->name('horoscopes.day');
     Route::get('/burclar', [HoroscopeForecastController::class, 'index'])->name('horoscopes.index');

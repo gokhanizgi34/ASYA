@@ -31,7 +31,6 @@
                 [
                     'label' => 'Otomatik İçerikler',
                     'items' => [
-                        ['label' => 'Çeviri Merkezi', 'route' => 'translations.index', 'pattern' => 'translations.*', 'allowed' => auth()->user()->can('viewAny', App\Models\ArticleTranslation::class)],
                         ['label' => 'Mukaddes Abla', 'route' => 'advice-letters.index', 'pattern' => 'advice-letters.*', 'allowed' => auth()->user()->can('viewAny', App\Models\AdviceLetter::class)],
                         ['label' => 'Günlük Burçlar', 'route' => 'horoscopes.index', 'pattern' => 'horoscopes.*', 'allowed' => auth()->user()->can('viewAny', App\Models\HoroscopeForecast::class)],
                         ['label' => 'Özel Gün Takvimi', 'route' => 'schedules.index', 'pattern' => 'schedules.*', 'allowed' => auth()->user()->can('viewAny', App\Models\ScheduleEntry::class)],

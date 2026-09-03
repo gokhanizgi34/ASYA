@@ -3,7 +3,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$projectPath = 'C:\ASYA'
+$projectPath = Split-Path -Parent $MyInvocation.MyCommand.Path
 $gitPath = 'C:\Program Files\Git\cmd\git.exe'
 
 if (-not (Test-Path -LiteralPath (Join-Path $projectPath '.git'))) {

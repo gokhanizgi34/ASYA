@@ -4,7 +4,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$projectPath = 'C:\ASYA'
+$projectPath = Split-Path -Parent $MyInvocation.MyCommand.Path
 $runtimePath = Join-Path $projectPath 'storage\app\asya-local'
 $watchdogPath = Join-Path $projectPath 'ASYA-YEREL-SISTEM.ps1'
 $backupPath = Join-Path $projectPath 'ASYA-YEDEKLE.ps1'
@@ -31,7 +31,11 @@ if (-not $watchdogIsRunning) {
     [IO.File]::WriteAllText($watchdogPidFile, [string] $watchdogProcess.Id)
 }
 
-$applicationUrl = 'http://127.0.0.1:8000/giris'
+$applicationBaseUrl = $env:ASYA_APP_URL
+if ([string]::IsNullOrWhiteSpace($applicationBaseUrl)) {
+    $applicationBaseUrl = 'http://127.0.0.1:8000'
+}
+$applicationUrl = '{0}/giris' -f $applicationBaseUrl
 $applicationIsReady = $false
 
 for ($attempt = 0; $attempt -lt 30; $attempt++) {

@@ -1,7 +1,18 @@
 $ErrorActionPreference = 'Stop'
 
-$projectPath = 'C:\ASYA'
-$phpPath = 'C:\laragon\bin\php\php-8.3.30-Win32-vs16-x64\php.exe'
+$projectPath = Split-Path -Parent $MyInvocation.MyCommand.Path
+$phpPath = $env:ASYA_PHP_PATH
+
+if ([string]::IsNullOrWhiteSpace($phpPath)) {
+    $phpCommand = Get-Command php.exe -ErrorAction SilentlyContinue
+    if ($null -ne $phpCommand) {
+        $phpPath = $phpCommand.Source
+    }
+}
+
+if ([string]::IsNullOrWhiteSpace($phpPath) -or -not (Test-Path -LiteralPath $phpPath)) {
+    throw 'PHP bulunamadı. ASYA_PHP_PATH ortam değişkenini tanımlayın veya PHP''yi PATH''e ekleyin.'
+}
 $artisanPath = Join-Path $projectPath 'artisan'
 $runtimePath = Join-Path $projectPath 'storage\app\asya-local'
 $logPath = Join-Path $projectPath 'storage\logs'
@@ -56,9 +67,14 @@ function Start-AsyaProcess {
     [IO.File]::WriteAllText($pidFile, [string] $process.Id)
 }
 
+$port = $env:ASYA_PORT
+if ([string]::IsNullOrWhiteSpace($port)) {
+    $port = '8000'
+}
+
 while ($true) {
     Start-AsyaProcess -Name 'asya-server' -Marker 'artisan serve' -Arguments @(
-        $artisanPath, 'serve', '--host=127.0.0.1', '--port=8000', '--no-reload'
+        $artisanPath, 'serve', '--host=127.0.0.1', ('--port={0}' -f $port), '--no-reload'
     )
 
     Start-AsyaProcess -Name 'asya-queue-ingestion' -Marker '--queue=news-ingestion' -Arguments @(

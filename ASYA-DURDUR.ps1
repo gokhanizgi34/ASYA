@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 
-$projectPath = 'C:\ASYA'
+$projectPath = Split-Path -Parent $MyInvocation.MyCommand.Path
 $runtimePath = Join-Path $projectPath 'storage\app\asya-local'
 $processNames = @('asya-watchdog', 'asya-server', 'asya-queue', 'asya-queue-ingestion', 'asya-queue-content', 'asya-queue-publishing', 'asya-queue-operations', 'asya-schedule')
 

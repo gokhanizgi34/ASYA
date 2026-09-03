@@ -23,11 +23,28 @@ class ApiIntegrationTester
         $startedAt = hrtime(true);
 
         try {
+            if ($integration->provider === IntegrationProvider::GitHubModels) {
+                $integration->update([
+                    'last_tested_at' => now(),
+                    'last_status_code' => 410,
+                    'last_response_time_ms' => 0,
+                    'last_error' => 'GitHub Models 30.07.2026 tarihinde emekliye ayrıldı ve artık kullanılamaz.',
+                    'is_active' => false,
+                ]);
+
+                return false;
+            }
+
             $testUrl = $integration->provider === IntegrationProvider::XTrends
                 ? rtrim($integration->base_url, '/').'/'.(int) config('services.external_trends.x_woeid', 23424969)
-                : $integration->base_url;
+                : ($integration->provider === IntegrationProvider::GitHubModels ? rtrim($integration->base_url, '/').'/chat/completions' : $integration->base_url);
             $this->urlGuard->assertSafe($testUrl);
-            $response = $this->request($integration)->get($testUrl, $integration->provider === IntegrationProvider::XTrends ? ['max_trends' => 1] : []);
+
+            if ($integration->provider === IntegrationProvider::GitHubModels) {
+                $response = $this->request($integration)->post($testUrl, ['model' => $integration->model, 'messages' => [['role' => 'user', 'content' => 'Reply with OK.']], 'max_tokens' => 2]);
+            } else {
+                $response = $this->request($integration)->get($testUrl, $integration->provider === IntegrationProvider::XTrends ? ['max_trends' => 1] : []);
+            }
             $elapsed = $this->elapsedMilliseconds($startedAt);
             $successful = $response->successful() || $response->redirect();
 

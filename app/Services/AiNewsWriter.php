@@ -67,6 +67,7 @@ class AiNewsWriter
             IntegrationProvider::XAi,
             IntegrationProvider::Groq,
             IntegrationProvider::OpenRouter => $this->openAiCompatible($integration, $rawNewsItem, $promptSnapshot),
+            IntegrationProvider::GitHubModels => throw new RuntimeException('GitHub Models 30.07.2026 tarihinde emekliye ayrıldı ve artık kullanılamaz.'),
             default => throw new RuntimeException('Bu sağlayıcı AI haber üretimi için desteklenmiyor.'),
         };
     }

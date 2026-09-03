@@ -46,4 +46,21 @@ class AiProviderConnectionTest extends TestCase
         Http::assertSent(fn (Request $request): bool => $request->url() === 'https://93.184.216.34/v1beta/models?key=gemini-secret');
         $this->assertStringNotContainsString('gemini-secret', (string) LearnedRoute::query()->first()?->toJson());
     }
+
+    public function test_retired_github_models_connection_is_disabled_without_network_call(): void
+    {
+        $integration = ApiIntegration::factory()->ai(IntegrationProvider::GitHubModels)->create([
+            'base_url' => 'https://93.184.216.34/inference',
+            'model' => 'openai/gpt-4.1-mini',
+            'credential' => 'github-secret',
+        ]);
+        Http::preventStrayRequests();
+
+        $this->assertFalse(app(ApiIntegrationTester::class)->test($integration));
+        $integration->refresh();
+        $this->assertFalse($integration->is_active);
+        $this->assertSame(410, $integration->last_status_code);
+        $this->assertStringContainsString('emekliye ayrıldı', $integration->last_error);
+        Http::assertNothingSent();
+    }
 }

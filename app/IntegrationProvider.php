@@ -13,6 +13,7 @@ enum IntegrationProvider: string
     case XAi = 'xai';
     case Groq = 'groq';
     case OpenRouter = 'openrouter';
+    case GitHubModels = 'github_models';
     case WordPress = 'wordpress';
     case XTrends = 'x_trends';
     case SocialMedia = 'social_media';
@@ -30,6 +31,7 @@ enum IntegrationProvider: string
             self::XAi => 'xAI (Grok)',
             self::Groq => 'Groq',
             self::OpenRouter => 'OpenRouter',
+            self::GitHubModels => 'GitHub Models',
             self::WordPress => 'WordPress',
             self::XTrends => 'X Gündem (Trends API)',
             self::SocialMedia => 'Sosyal Medya',
@@ -63,6 +65,7 @@ enum IntegrationProvider: string
             self::XAi => 'https://api.x.ai/v1/models',
             self::Groq => 'https://api.groq.com/openai/v1/models',
             self::OpenRouter => 'https://openrouter.ai/api/v1/models',
+            self::GitHubModels => 'https://models.github.ai/inference',
             default => null,
         };
     }
@@ -93,6 +96,7 @@ enum IntegrationProvider: string
             self::XAi => ['grok-4', 'grok-4-fast'],
             self::Groq => ['llama-3.3-70b-versatile', 'openai/gpt-oss-120b'],
             self::OpenRouter => ['openai/gpt-5', 'anthropic/claude-sonnet-4.5'],
+            self::GitHubModels => ['openai/gpt-4.1-mini', 'meta/llama-3.3-70b-instruct', 'microsoft/phi-4'],
             default => [],
         };
     }

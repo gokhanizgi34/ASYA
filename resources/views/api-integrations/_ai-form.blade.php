@@ -32,4 +32,10 @@
         <input type="password" name="credential" maxlength="4000" @required(! $integration) autocomplete="new-password" placeholder="{{ $integration ? 'Değişmeyecekse boş bırakın' : 'API anahtarını buraya yapıştırın' }}" class="w-full rounded-xl border border-cyan-400/30 bg-slate-900 px-4 py-3 outline-none focus:border-cyan-300">
         <small class="mt-2 block text-emerald-300/80">Anahtar şifreli saklanır. Model, API adresi ve bağlantı ayarları otomatik hazırlanır.</small>
     </label>
+
+    <label class="flex items-center gap-3 rounded-xl border border-amber-400/20 bg-amber-400/5 px-4 py-3">
+        <input type="hidden" name="visual_enabled" value="0">
+        <input type="checkbox" name="visual_enabled" value="1" @checked((bool) old('visual_enabled', $integration?->visual_enabled ?? false))>
+        <span><strong class="block">Görsel üretiminde kullanılabilir</strong><small class="text-slate-500">Haber metni API’leri varsayılan olarak görsel üretiminden ayrı tutulur.</small></span>
+    </label>
 </div>

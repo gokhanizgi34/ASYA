@@ -118,6 +118,7 @@ class AutomaticArticleVisualManager
     private function generateImage(Article $article): VisualAsset
     {
         $integrations = $this->registry->forAgency($article->agency_id)
+            ->filter(fn (ApiIntegration $candidate): bool => $candidate->visual_enabled)
             ->filter(fn (ApiIntegration $candidate): bool => in_array($candidate->provider, [IntegrationProvider::GoogleGemini, IntegrationProvider::OpenAi], true));
 
         if ($integrations->isEmpty()) {

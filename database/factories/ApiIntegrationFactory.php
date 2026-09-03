@@ -21,6 +21,7 @@ class ApiIntegrationFactory extends Factory
             'model' => null,
             'priority' => 50,
             'is_default' => false,
+            'visual_enabled' => false,
             'base_url' => 'https://'.fake()->domainName().'/api/health',
             'auth_type' => IntegrationAuthType::Bearer,
             'username' => null,

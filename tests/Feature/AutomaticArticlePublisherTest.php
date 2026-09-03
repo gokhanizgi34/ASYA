@@ -108,6 +108,7 @@ class AutomaticArticlePublisherTest extends TestCase
         $article = Article::factory()->for($agency)->create();
         ApiIntegration::factory()->ai(IntegrationProvider::OpenAi)->for($agency)->create([
             'credential' => 'openai-key',
+            'visual_enabled' => true,
         ]);
         SystemSetting::factory()->for($agency)->create([
             'key' => 'visual.ai_generation_enabled',

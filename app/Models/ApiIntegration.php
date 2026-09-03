@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-#[Fillable(['agency_id', 'name', 'provider', 'model', 'priority', 'is_default', 'base_url', 'auth_type', 'username', 'api_key_header', 'credential', 'timeout_seconds', 'is_active', 'last_tested_at', 'last_status_code', 'last_response_time_ms', 'last_error'])]
+#[Fillable(['agency_id', 'name', 'provider', 'model', 'priority', 'is_default', 'visual_enabled', 'base_url', 'auth_type', 'username', 'api_key_header', 'credential', 'timeout_seconds', 'is_active', 'last_tested_at', 'last_status_code', 'last_response_time_ms', 'last_error'])]
 #[Hidden(['credential'])]
 class ApiIntegration extends Model
 {
@@ -51,6 +51,7 @@ class ApiIntegration extends Model
             'credential' => 'encrypted',
             'priority' => 'integer',
             'is_default' => 'boolean',
+            'visual_enabled' => 'boolean',
             'timeout_seconds' => 'integer',
             'is_active' => 'boolean',
             'last_tested_at' => 'datetime',

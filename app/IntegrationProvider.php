@@ -90,7 +90,7 @@ enum IntegrationProvider: string
         return match ($this) {
             self::OpenAi => ['gpt-5', 'gpt-5-mini', 'gpt-4.1'],
             self::Anthropic => ['claude-sonnet-4-5', 'claude-haiku-4-5'],
-            self::GoogleGemini => ['gemini-2.5-pro', 'gemini-2.5-flash'],
+            self::GoogleGemini => ['gemini-3.5-flash-lite', 'gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-2.5-pro'],
             self::DeepSeek => ['deepseek-chat', 'deepseek-reasoner'],
             self::Mistral => ['mistral-large-latest', 'mistral-small-latest'],
             self::XAi => ['grok-4', 'grok-4-fast'],

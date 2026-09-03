@@ -40,8 +40,8 @@ class RecipeAiGenerator
             }
 
             $title = Str::squish((string) ($row['title'] ?? ''));
-            $ingredients = Str::squish((string) ($row['ingredients'] ?? ''));
-            $instructions = Str::squish((string) ($row['instructions'] ?? ''));
+            $ingredients = $this->textValue($row['ingredients'] ?? '');
+            $instructions = $this->textValue($row['instructions'] ?? '');
             if ($title === '' || Str::length($ingredients) < 10 || Str::length($instructions) < 20) {
                 continue;
             }
@@ -101,5 +101,14 @@ class RecipeAiGenerator
         if (! filter_var($url, FILTER_VALIDATE_URL) || ! in_array(parse_url($url, PHP_URL_SCHEME), ['http', 'https'], true)) {
             throw new RuntimeException('AI tarif endpointi geçersiz.');
         }
+    }
+
+    private function textValue(mixed $value): string
+    {
+        if (is_array($value)) {
+            return Str::squish(collect($value)->map(fn (mixed $item): string => $this->textValue($item))->filter()->implode(' '));
+        }
+
+        return Str::squish((string) $value);
     }
 }

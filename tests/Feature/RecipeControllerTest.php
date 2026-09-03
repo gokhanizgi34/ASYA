@@ -59,7 +59,7 @@ class RecipeControllerTest extends TestCase
 
     public function test_owner_can_manually_generate_four_text_recipes_and_quota_blocks_second_run(): void
     {
-        Http::fake(['https://93.184.216.34/v1/chat/completions' => Http::response(['choices' => [['message' => ['content' => json_encode(['recipes' => collect(['main', 'cold', 'salad', 'dessert'])->map(fn (string $category): array => ['category' => $category, 'title' => $category.' tarifi', 'ingredients' => 'Sebze, baharat, yağ ve temel malzemeler', 'instructions' => 'Malzemeleri hazırlayın, pişirin ve servis edin.'])->all()], JSON_UNESCAPED_UNICODE)]]]])]);
+        Http::fake(['https://93.184.216.34/v1/chat/completions' => Http::response(['choices' => [['message' => ['content' => json_encode(['recipes' => collect(['main', 'cold', 'salad', 'dessert'])->map(fn (string $category): array => ['category' => $category, 'title' => $category.' tarifi', 'ingredients' => ['Sebze', 'baharat', 'yağ'], 'instructions' => ['Malzemeleri hazırlayın.', 'Pişirin ve servis edin.']])->all()], JSON_UNESCAPED_UNICODE)]]]])]);
         $agency = Agency::factory()->create(['recipe_daily_quota' => 4]);
         $owner = User::factory()->agencyOwner()->for($agency)->create();
         ApiIntegration::factory()->for($agency)->create(['provider' => IntegrationProvider::OpenAi, 'base_url' => 'https://93.184.216.34/v1/models', 'auth_type' => IntegrationAuthType::Bearer, 'credential' => 'recipe-key', 'is_active' => true]);

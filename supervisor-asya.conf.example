@@ -1,0 +1,62 @@
+; Ubuntu Supervisor örneği.
+; APP_PATH ve PHP yolunu sunucuya göre değiştirin.
+
+[program:asya-queue-ingestion]
+directory=/var/www/asya
+command=/usr/bin/php artisan queue:work redis --queue=news-ingestion --sleep=1 --tries=3 --timeout=300 --max-time=3600
+user=www-data
+autostart=true
+autorestart=true
+stopasgroup=true
+killasgroup=true
+redirect_stderr=true
+stdout_logfile=/var/www/asya/storage/logs/queue-ingestion.log
+stopwaitsecs=360
+
+[program:asya-queue-content]
+directory=/var/www/asya
+command=/usr/bin/php artisan queue:work redis --queue=content --sleep=1 --tries=3 --timeout=300 --max-time=3600
+user=www-data
+autostart=true
+autorestart=true
+stopasgroup=true
+killasgroup=true
+redirect_stderr=true
+stdout_logfile=/var/www/asya/storage/logs/queue-content.log
+stopwaitsecs=360
+
+[program:asya-queue-publishing]
+directory=/var/www/asya
+command=/usr/bin/php artisan queue:work redis --queue=publishing --sleep=1 --tries=3 --timeout=300 --max-time=3600
+user=www-data
+autostart=true
+autorestart=true
+stopasgroup=true
+killasgroup=true
+redirect_stderr=true
+stdout_logfile=/var/www/asya/storage/logs/queue-publishing.log
+stopwaitsecs=360
+
+[program:asya-queue-operations]
+directory=/var/www/asya
+command=/usr/bin/php artisan queue:work redis --queue=scheduling,analytics,default --sleep=1 --tries=3 --timeout=300 --max-time=3600
+user=www-data
+autostart=true
+autorestart=true
+stopasgroup=true
+killasgroup=true
+redirect_stderr=true
+stdout_logfile=/var/www/asya/storage/logs/queue-operations.log
+stopwaitsecs=360
+
+[program:asya-scheduler]
+directory=/var/www/asya
+command=/usr/bin/php artisan schedule:work
+user=www-data
+autostart=true
+autorestart=true
+stopasgroup=true
+killasgroup=true
+redirect_stderr=true
+stdout_logfile=/var/www/asya/storage/logs/scheduler.log
+stopwaitsecs=360

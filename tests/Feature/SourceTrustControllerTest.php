@@ -48,6 +48,40 @@ class SourceTrustControllerTest extends TestCase
         Queue::assertPushed(fn (ImportNewsSource $job): bool => $job->newsSourceId === $source->id);
     }
 
+    public function test_same_host_allows_multiple_feed_urls_but_rejects_the_same_feed_url(): void
+    {
+        Queue::fake([ImportNewsSource::class]);
+        $agency = Agency::factory()->create();
+        $editor = User::factory()->editor()->for($agency)->create();
+
+        $this->actingAs($editor)->post(route('source-trust.sources.store'), [
+            'name' => 'RSS Bir',
+            'feed_url' => 'https://rss.app/feeds/one.xml',
+            'feed_format' => 'auto',
+            'source_type' => 'agency',
+            'is_active' => '1',
+            'daily_item_limit' => 10,
+        ])->assertRedirect();
+        $this->actingAs($editor)->post(route('source-trust.sources.store'), [
+            'name' => 'RSS İki',
+            'feed_url' => 'https://rss.app/feeds/two.xml',
+            'feed_format' => 'auto',
+            'source_type' => 'agency',
+            'is_active' => '1',
+            'daily_item_limit' => 10,
+        ])->assertRedirect();
+
+        $this->assertDatabaseCount('news_sources', 2);
+        $this->actingAs($editor)->post(route('source-trust.sources.store'), [
+            'name' => 'RSS Tekrar',
+            'feed_url' => 'https://rss.app/feeds/one.xml',
+            'feed_format' => 'auto',
+            'source_type' => 'agency',
+            'is_active' => '1',
+            'daily_item_limit' => 10,
+        ])->assertSessionHasErrors('feed_url');
+    }
+
     public function test_single_selected_score_updates_source_and_preserves_history(): void
     {
         $agency = Agency::factory()->create();

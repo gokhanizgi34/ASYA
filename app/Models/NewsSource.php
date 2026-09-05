@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['agency_id', 'created_by', 'name', 'domain', 'feed_url', 'allow_insecure_tls', 'feed_format', 'source_type', 'notes', 'is_active', 'daily_item_limit', 'latest_score', 'latest_band', 'last_assessed_at', 'last_fetched_at', 'last_status_code', 'last_ingestion_method', 'last_content_fingerprint', 'last_change_detected_at', 'last_crawled_pages'])]
+#[Fillable(['agency_id', 'created_by', 'name', 'domain', 'feed_url', 'feed_url_hash', 'allow_insecure_tls', 'feed_format', 'source_type', 'notes', 'is_active', 'daily_item_limit', 'latest_score', 'latest_band', 'last_assessed_at', 'last_fetched_at', 'last_status_code', 'last_ingestion_method', 'last_content_fingerprint', 'last_change_detected_at', 'last_crawled_pages'])]
 class NewsSource extends Model
 {
     /** @use HasFactory<NewsSourceFactory> */

@@ -29,11 +29,9 @@ class UpdateNewsSourceRequest extends FormRequest
                 'required',
                 'string',
                 'max:190',
-                Rule::unique('news_sources')
-                    ->where(fn ($query) => $query->where('agency_id', $source instanceof NewsSource ? $source->agency_id : null))
-                    ->ignore($source),
             ],
             'feed_url' => ['required', 'url:http,https', 'max:2048'],
+            'feed_url_hash' => ['required', Rule::unique('news_sources')->where(fn ($query) => $query->where('agency_id', $source instanceof NewsSource ? $source->agency_id : null))->ignore($source)],
             'allow_insecure_tls' => ['boolean'],
             'feed_format' => ['required', Rule::in(['auto', 'rss', 'atom'])],
             'source_type' => ['required', Rule::in(['news_site', 'official', 'agency', 'expert', 'social', 'other'])],
@@ -46,6 +44,11 @@ class UpdateNewsSourceRequest extends FormRequest
     public function after(): array
     {
         return [function (Validator $validator): void {
+            if ($validator->errors()->has('feed_url_hash')) {
+                $validator->errors()->forget('feed_url_hash');
+                $validator->errors()->add('feed_url', 'Bu RSS/akış bağlantısı aynı ajans için zaten kayıtlı.');
+            }
+
             if ($validator->errors()->has('feed_url')) {
                 return;
             }
@@ -68,6 +71,7 @@ class UpdateNewsSourceRequest extends FormRequest
             'name' => trim((string) $this->input('name')),
             'domain' => $domain,
             'feed_url' => $feedUrl,
+            'feed_url_hash' => hash('sha256', mb_strtolower($feedUrl)),
             'allow_insecure_tls' => $this->boolean('allow_insecure_tls'),
             'feed_format' => $this->input('feed_format', 'auto'),
             'notes' => filled($this->input('notes')) ? trim((string) $this->input('notes')) : null,

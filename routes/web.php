@@ -52,6 +52,7 @@ use App\Http\Controllers\PublishingTargetController;
 use App\Http\Controllers\RawNewsAllActionController;
 use App\Http\Controllers\RawNewsBulkActionController;
 use App\Http\Controllers\RawNewsItemController;
+use App\Http\Controllers\RawNewsProductionController;
 use App\Http\Controllers\RecipeController;
 use App\Http\Controllers\ScheduleEntryController;
 use App\Http\Controllers\ScheduleEntryStatusController;
@@ -97,6 +98,7 @@ Route::middleware(['auth', EnsureUserIsActive::class, ApplySystemSettings::class
 
     Route::patch('/ham-haber-havuzu/tumu', RawNewsAllActionController::class)->name('raw-news.all-action');
     Route::patch('/ham-haber-havuzu/toplu-islem', RawNewsBulkActionController::class)->name('raw-news.bulk-action');
+    Route::post('/ham-haber-havuzu/{rawNewsItem}/uretime-gonder', RawNewsProductionController::class)->name('raw-news.production');
     Route::resource('ham-haber-havuzu', RawNewsItemController::class)
         ->parameters(['ham-haber-havuzu' => 'rawNewsItem'])
         ->names('raw-news');

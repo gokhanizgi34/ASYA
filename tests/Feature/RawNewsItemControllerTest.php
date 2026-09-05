@@ -3,10 +3,13 @@
 namespace Tests\Feature;
 
 use App\Models\Agency;
+use App\Models\ContentBatch;
 use App\Models\RawNewsItem;
 use App\Models\User;
 use App\RawNewsStatus;
+use App\Services\AutomaticNewsPipelineStarter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Mockery\MockInterface;
 use Tests\TestCase;
 
 class RawNewsItemControllerTest extends TestCase
@@ -99,6 +102,20 @@ class RawNewsItemControllerTest extends TestCase
             ->assertOk()
             ->assertSee($matching->original_title)
             ->assertDontSee($other->original_title);
+    }
+
+    public function test_owner_can_send_one_pending_raw_news_item_directly_to_production(): void
+    {
+        $agency = Agency::factory()->create();
+        $owner = User::factory()->agencyOwner()->for($agency)->create();
+        $item = RawNewsItem::factory()->for($agency)->create(['status' => RawNewsStatus::Pending]);
+        $this->mock(AutomaticNewsPipelineStarter::class, function (MockInterface $mock) use ($agency, $item): void {
+            $mock->shouldReceive('startForAgency')->once()->withArgs(fn (int $agencyId, array $rawNewsItemIds): bool => $agencyId === $agency->id && $rawNewsItemIds === [$item->id])->andReturn(new ContentBatch);
+        });
+
+        $this->actingAs($owner)->post(route('raw-news.production', $item))->assertRedirect()->assertSessionHas('success');
+        $this->assertNull($item->fresh()->failure_message);
+        $this->assertSame(RawNewsStatus::Pending, $item->fresh()->status);
     }
 
     /**

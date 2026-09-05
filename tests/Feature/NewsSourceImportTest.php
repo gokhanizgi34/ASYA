@@ -311,6 +311,42 @@ XML;
         $this->assertNull($source->refresh()->last_fetch_error);
     }
 
+    public function test_certificate_failure_automatically_enables_insecure_tls_after_successful_retry(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake(fn () => throw new ConnectionException('cURL error 60: SSL certificate problem: unable to get local issuer certificate'));
+        $this->mock(NativeTlsHttpFetcher::class, function ($mock): void {
+            $mock->shouldReceive('caBundlePath')->andReturn(null);
+            $mock->shouldReceive('fetch')->andReturnUsing(function (string $url, string $accept, string $userAgent, int $maxBodyBytes = 5_000_000, bool $allowInsecureTls = false): ClientResponse {
+                if (! $allowInsecureTls) {
+                    throw new \RuntimeException('Kaynağın HTTPS sertifika zinciri doğrulanamadı.');
+                }
+
+                if (str_ends_with($url, '/feed/') || str_contains($url, '/wp-json/')) {
+                    return new ClientResponse(new PsrResponse(404, ['Content-Type' => 'text/plain'], ''));
+                }
+
+                if (str_contains($url, '/haber/ssl-otomatik')) {
+                    return new ClientResponse(new PsrResponse(200, ['Content-Type' => 'text/html'], $this->articleHtml('Otomatik TLS fallback haber başlığı', 'ssl-auto.jpg')));
+                }
+
+                return new ClientResponse(new PsrResponse(200, ['Content-Type' => 'text/html'], '<html><body><h2><a href="/haber/ssl-otomatik">Otomatik TLS fallback haber başlığı</a></h2></body></html>'));
+            });
+        });
+        $agency = Agency::factory()->create();
+        $editor = User::factory()->editor()->for($agency)->create();
+        $source = NewsSource::factory()->for($agency)->create([
+            'feed_url' => 'https://93.184.216.34/haberler',
+            'allow_insecure_tls' => false,
+        ]);
+
+        $this->actingAs($editor)->post(route('source-trust.sources.import', $source))->assertRedirect()->assertSessionHas('success');
+
+        $this->assertTrue($source->refresh()->allow_insecure_tls);
+        $this->assertNull($source->last_fetch_error);
+        $this->assertDatabaseHas('raw_news_items', ['original_title' => 'Otomatik TLS fallback haber başlığı']);
+    }
+
     public function test_html_crawler_extracts_lazy_loaded_source_image(): void
     {
         Http::preventStrayRequests();

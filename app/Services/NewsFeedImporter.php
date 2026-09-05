@@ -7,6 +7,7 @@ use App\Models\RawNewsItem;
 use App\RawNewsStatus;
 use Illuminate\Support\Str;
 use RuntimeException;
+use Throwable;
 
 class NewsFeedImporter
 {
@@ -43,7 +44,18 @@ class NewsFeedImporter
             ];
         }
 
-        $extraction = $this->extractor->extract((string) $source->feed_url, $source->agency_id, $source->allow_insecure_tls, $lookbackDays);
+        $enabledInsecureTls = false;
+
+        try {
+            $extraction = $this->extractor->extract((string) $source->feed_url, $source->agency_id, $source->allow_insecure_tls, $lookbackDays);
+        } catch (Throwable $exception) {
+            if ($source->allow_insecure_tls || ! $this->isTlsCertificateFailure($exception)) {
+                throw $exception;
+            }
+
+            $extraction = $this->extractor->extract((string) $source->feed_url, $source->agency_id, true, $lookbackDays);
+            $enabledInsecureTls = true;
+        }
         $items = $extraction['items'];
         $imported = 0;
         $skipped = 0;
@@ -142,6 +154,7 @@ class NewsFeedImporter
 
         $previousFingerprint = $source->last_content_fingerprint;
         $source->forceFill([
+            'allow_insecure_tls' => $source->allow_insecure_tls || $enabledInsecureTls,
             'feed_url' => $extraction['url'],
             'feed_format' => $extraction['method'] === 'rss_atom_xml' ? 'auto' : 'smart',
             'last_fetched_at' => now(),
@@ -163,6 +176,25 @@ class NewsFeedImporter
             'daily_limit' => $dailyLimit,
             'daily_remaining' => $ignoreDailyLimit ? 0 : max(0, $remaining - $imported),
         ];
+    }
+
+    private function isTlsCertificateFailure(Throwable $exception): bool
+    {
+        do {
+            if (Str::contains(Str::lower($exception->getMessage()), [
+                'curl error 60',
+                'ssl certificate problem',
+                'sertifika zinciri doğrulanamadı',
+                'unable to get local issuer certificate',
+                'certificate verify failed',
+            ])) {
+                return true;
+            }
+
+            $exception = $exception->getPrevious();
+        } while ($exception instanceof Throwable);
+
+        return false;
     }
 
     private function applyQualityStatus(RawNewsItem $rawNewsItem): void

@@ -103,6 +103,7 @@ Route::middleware(['auth', EnsureUserIsActive::class, ApplySystemSettings::class
         ->names('raw-news');
 
     Route::patch('/haberler/toplu-islem', ArticleBulkActionController::class)->name('articles.bulk-action');
+    Route::get('/haberler/ai-uret', [ArticleController::class, 'create'])->name('articles.generate-topic-form');
     Route::post('/haberler/konudan-uret', TopicArticleGenerationController::class)->name('articles.generate-topic');
     Route::post('/haberler/{article}/yeniden-dene', ArticleRetryController::class)->name('articles.retry');
     Route::get('/haberler/{article}/seo', [SeoAnalysisController::class, 'show'])->name('seo.show');

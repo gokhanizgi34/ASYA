@@ -7,7 +7,12 @@
                 <p class="mt-2 text-slate-400">Taslakları, onay kuyruğunu, yayınları ve hatalı içerikleri yönetin.</p>
             </div>
             @can('create', App\Models\Article::class)
-                <a href="{{ route('articles.create') }}" class="rounded-xl bg-cyan-300 px-5 py-3 text-center font-bold text-slate-950 hover:bg-cyan-200">+ Haber oluştur</a>
+                <div class="flex flex-col gap-2 sm:flex-row">
+                    @if(auth()->user()->isSystemAdministrator() || auth()->user()->isAgencyOwner())
+                        <a href="{{ route('articles.generate-topic-form') }}" class="rounded-xl bg-cyan-300 px-5 py-3 text-center font-bold text-slate-950 hover:bg-cyan-200">AI ile haber üret</a>
+                    @endif
+                    <a href="{{ route('articles.create') }}" class="rounded-xl border border-cyan-300/30 px-5 py-3 text-center font-bold text-cyan-200 hover:bg-cyan-300/10">+ Manuel haber</a>
+                </div>
             @endcan
         </header>
 

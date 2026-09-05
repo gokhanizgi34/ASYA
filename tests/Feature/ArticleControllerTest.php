@@ -131,6 +131,21 @@ class ArticleControllerTest extends TestCase
             ->assertDontSee($published->title);
     }
 
+    public function test_owner_sees_direct_ai_generation_entry_but_editor_does_not(): void
+    {
+        $agency = Agency::factory()->create();
+        $owner = User::factory()->agencyOwner()->for($agency)->create();
+        $editor = User::factory()->editor()->for($agency)->create();
+
+        $this->actingAs($owner)->get(route('articles.index'))
+            ->assertOk()
+            ->assertSee('AI ile haber üret')
+            ->assertSee(route('articles.generate-topic-form'), false);
+        $this->actingAs($editor)->get(route('articles.index'))
+            ->assertOk()
+            ->assertDontSee('AI ile haber üret');
+    }
+
     /**
      * @param  array<string, mixed>  $overrides
      * @return array<string, mixed>

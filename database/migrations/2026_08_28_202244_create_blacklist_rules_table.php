@@ -13,8 +13,8 @@ return new class extends Migration
             $table->foreignId('agency_id')->constrained()->cascadeOnDelete();
             $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->string('type', 30);
-            $table->string('pattern', 1000);
-            $table->string('normalized_pattern', 1000);
+            $table->string('pattern', 500);
+            $table->string('normalized_pattern', 500);
             $table->string('action', 20);
             $table->string('reason', 500)->nullable();
             $table->unsignedInteger('hit_count')->default(0);

@@ -228,10 +228,8 @@ class ExternalTrendCollectorTest extends TestCase
 
         $result = app(ExternalTrendCollector::class)->collect($agency->id);
 
-        $this->assertSame(['received' => 1, 'imported' => 1, 'queued' => 1], $result);
-        $rawNews = RawNewsItem::query()->firstOrFail();
-        $this->assertStringContainsString('Filenin Sultanları', $rawNews->original_title);
-        $this->assertStringContainsString('Sırbistan', $rawNews->original_body);
+        $this->assertSame(['received' => 1, 'imported' => 0, 'queued' => 0], $result);
+        $this->assertDatabaseCount('raw_news_items', 0);
         $this->assertSame(0, RawNewsItem::query()->where('original_title', 'like', '%X gündeminde öne çıktı')->count());
     }
 

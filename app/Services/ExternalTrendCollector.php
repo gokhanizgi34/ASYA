@@ -44,8 +44,7 @@ class ExternalTrendCollector
             : [];
         $items = collect($googleItems)
             ->merge($this->xTrends($agencyId))
-            ->unique(fn (array $item): string => Str::lower($item['source'].'|'.$item['title']))
-            ->take((int) config('services.external_trends.max_items_per_run', 20));
+            ->unique(fn (array $item): string => Str::lower($item['source'].'|'.$item['title']));
 
         $rawNewsItemIds = [];
         $imported = 0;
@@ -235,7 +234,7 @@ class ExternalTrendCollector
                 ])
                 ->throw();
 
-            return collect((array) data_get($response->json(), 'data', []))
+            $items = collect((array) data_get($response->json(), 'data', []))
                 ->filter(fn (mixed $item): bool => is_array($item) && filled($item['trend_name'] ?? null))
                 ->map(function (array $item): array {
                     $name = Str::of((string) $item['trend_name'])->squish()->toString();
@@ -245,6 +244,8 @@ class ExternalTrendCollector
                 })
                 ->values()
                 ->all();
+
+            return $items !== [] ? $items : $this->xWebTrends();
         } catch (Throwable) {
             try {
                 return $this->xWebTrends();

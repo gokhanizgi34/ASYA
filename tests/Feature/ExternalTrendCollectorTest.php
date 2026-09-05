@@ -123,11 +123,15 @@ class ExternalTrendCollectorTest extends TestCase
         Queue::fake([ProcessContentBatch::class]);
         Http::preventStrayRequests();
         config([
+            'services.external_trends.x_endpoint' => 'https://93.184.216.34/x-trends',
             'services.external_trends.x_web_url' => 'https://93.184.216.34/turkey/',
             'services.external_trends.x_max_trends' => 2,
             'services.external_trends.max_items_per_run' => 5,
         ]);
-        Http::fake(['https://93.184.216.34/turkey/' => Http::response($this->xTrendsHtml(), 200, ['Content-Type' => 'text/html'])]);
+        Http::fake([
+            'https://93.184.216.34/x-trends/*' => Http::response(['data' => []]),
+            'https://93.184.216.34/turkey/' => Http::response($this->xTrendsHtml(), 200, ['Content-Type' => 'text/html']),
+        ]);
         $agency = Agency::factory()->create();
         SystemSetting::factory()->for($agency)->create([
             'key' => 'trends.google_daily_item_limit',
@@ -136,6 +140,12 @@ class ExternalTrendCollectorTest extends TestCase
         ]);
         User::factory()->editor()->for($agency)->create();
         ApiIntegration::factory()->ai(IntegrationProvider::GoogleGemini)->for($agency)->create(['is_active' => true, 'credential' => 'gemini-key']);
+        ApiIntegration::factory()->for($agency)->create([
+            'provider' => IntegrationProvider::XTrends,
+            'base_url' => 'https://93.184.216.34/x-trends',
+            'credential' => 'x-key',
+            'is_active' => true,
+        ]);
         PublishingTarget::factory()->for($agency)->create(['is_active' => true]);
 
         $result = app(ExternalTrendCollector::class)->collect($agency->id);

@@ -795,7 +795,7 @@ class NewsContentExtractor
     {
         return array_values(array_filter(
             $items,
-            fn (array $item): bool => $item['published_at']->greaterThanOrEqualTo(now()->subDay()),
+            fn (array $item): bool => $item['published_at']->greaterThanOrEqualTo(now()->subDays(2)),
         ));
     }
 

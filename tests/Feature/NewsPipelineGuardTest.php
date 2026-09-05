@@ -12,6 +12,7 @@ use App\Models\PublishingTarget;
 use App\Models\RawNewsItem;
 use App\Models\User;
 use App\PublicationStatus;
+use App\Services\NewsContentExtractor;
 use App\Services\NewsContentQualityGate;
 use App\Services\NewsDuplicateDetector;
 use App\Services\NewsFeedImporter;
@@ -113,6 +114,24 @@ class NewsPipelineGuardTest extends TestCase
         $this->assertSame('daily_quota_reached', $result['method']);
         $this->assertSame(0, $result['daily_remaining']);
         Http::assertNothingSent();
+    }
+
+    public function test_news_older_than_two_days_is_excluded_but_two_day_news_is_kept(): void
+    {
+        $this->travelTo('2026-09-05 12:00:00');
+        $items = [
+            ['external_id' => 'old', 'title' => 'Eski haber', 'body' => 'Eski haber metni', 'url' => null, 'image_url' => null, 'published_at' => now()->subDays(2)->subMinute()],
+            ['external_id' => 'recent', 'title' => 'Güncel haber', 'body' => 'Güncel haber metni', 'url' => null, 'image_url' => null, 'published_at' => now()->subDays(2)],
+        ];
+
+        $extractor = app(NewsContentExtractor::class);
+        $method = new \ReflectionMethod($extractor, 'filterRecentItems');
+        $method->setAccessible(true);
+
+        $filtered = $method->invoke($extractor, $items);
+
+        $this->assertCount(1, $filtered);
+        $this->assertSame('recent', $filtered[0]['external_id']);
     }
 
     public function test_duplicate_article_is_blocked_again_at_wordpress_boundary(): void

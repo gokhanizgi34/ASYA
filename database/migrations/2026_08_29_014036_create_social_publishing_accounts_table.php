@@ -21,7 +21,7 @@ return new class extends Migration
             $table->timestamp('last_published_at')->nullable();
             $table->timestamps();
 
-            $table->unique(['agency_id', 'platform', 'account_handle']);
+            $table->unique(['agency_id', 'platform', 'account_handle'], 'social_accounts_agency_platform_handle_uq');
         });
     }
 

@@ -329,9 +329,31 @@ XML;
         $this->assertSame('https://93.184.216.34/images/lazy-cover.webp', RawNewsItem::query()->firstOrFail()->original_image_url);
     }
 
+    public function test_html_crawler_does_not_store_the_source_homepage_as_a_news_image(): void
+    {
+        Http::fake([
+            'https://93.184.216.34/haberler' => Http::response('<html><body><h2><a href="/haber/logo">Görseli olmayan haber başlığı</a></h2></body></html>', 200, ['Content-Type' => 'text/html']),
+            'https://93.184.216.34/haberler/feed/' => Http::response('', 404),
+            'https://93.184.216.34/wp-json/wp/v2/posts?per_page=20&_embed=1' => Http::response('', 404),
+            'https://93.184.216.34/haber/logo' => Http::response($this->articleHtmlWithImage('Görseli olmayan haber başlığı', 'https://93.184.216.34'), 200, ['Content-Type' => 'text/html']),
+        ]);
+        $agency = Agency::factory()->create();
+        $editor = User::factory()->editor()->for($agency)->create();
+        $source = NewsSource::factory()->for($agency)->create(['feed_url' => 'https://93.184.216.34/haberler']);
+
+        $this->actingAs($editor)->post(route('source-trust.sources.import', $source))->assertRedirect();
+
+        $this->assertNull(RawNewsItem::query()->firstOrFail()->original_image_url);
+    }
+
     private function articleHtml(string $title, string $image): string
     {
         return '<html><head><meta property="og:title" content="'.$title.'"><meta property="og:image" content="/images/'.$image.'"><meta property="article:published_time" content="2026-08-30T12:00:00+03:00"></head><body><article><h1>'.$title.'</h1><p>Bu haber ayrıntısı, HTML DOM ayrıştırıcısının güvenli biçimde içerik çıkarmasını doğrulamak için yeterince uzun bir metin içerir.</p><p>İkinci paragraf haber gövdesinin eksiksiz olarak ham haber havuzuna alınmasını sağlar.</p><p>Belediye ekiplerinin sahadaki çalışmaları belirlenen proje alanında planlı biçimde devam etmektedir.</p><p>Vatandaşlara geçici güzergâh değişikliklerini gösteren yönlendirme levhaları yerleştirilmiştir.</p><p>Son paragraf, tam haber gövdesinin kısa akış özetinin yerine geçtiğini ve uygulama takviminin izlenmesini sağlar.</p></article></body></html>';
+    }
+
+    private function articleHtmlWithImage(string $title, string $image): string
+    {
+        return '<html><head><meta property="og:title" content="'.$title.'"><meta property="og:image" content="'.$image.'"></head><body><article><h1>'.$title.'</h1><p>Bu haber ayrıntısı, HTML DOM ayrıştırıcısının güvenli biçimde içerik çıkarmasını doğrulamak için yeterince uzun bir metin içerir.</p><p>İkinci paragraf haber gövdesinin eksiksiz olarak ham haber havuzuna alınmasını sağlar.</p><p>Belediye ekiplerinin sahadaki çalışmaları belirlenen proje alanında planlı biçimde devam etmektedir.</p><p>Vatandaşlara geçici güzergâh değişikliklerini gösteren yönlendirme levhaları yerleştirilmiştir.</p><p>Son paragraf, tam haber gövdesinin kısa akış özetinin yerine geçtiğini ve uygulama takviminin izlenmesini sağlar.</p></article></body></html>';
     }
 
     private function rss(): string

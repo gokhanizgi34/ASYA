@@ -33,6 +33,7 @@ class RenderedPageCapture
             $process = new Process([
                 $chrome,
                 '--headless=new',
+                '--no-sandbox',
                 '--disable-gpu',
                 '--hide-scrollbars',
                 '--disable-extensions',

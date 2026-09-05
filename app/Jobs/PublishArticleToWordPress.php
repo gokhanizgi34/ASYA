@@ -4,7 +4,6 @@ namespace App\Jobs;
 
 use App\Models\Publication;
 use App\PublicationStatus;
-use App\Services\NewsDuplicateDetector;
 use App\Services\NotificationCenter;
 use App\Services\WordPressPublisher;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
@@ -33,33 +32,11 @@ class PublishArticleToWordPress implements ShouldBeUnique, ShouldQueue
         return (string) $this->publicationId;
     }
 
-    public function handle(WordPressPublisher $publisher, ?NotificationCenter $notifications = null, ?NewsDuplicateDetector $duplicateDetector = null): void
+    public function handle(WordPressPublisher $publisher, ?NotificationCenter $notifications = null): void
     {
-        $publication = DB::transaction(function () use ($duplicateDetector): ?Publication {
+        $publication = DB::transaction(function (): ?Publication {
             $locked = Publication::query()->with(['publishingTarget', 'article'])->lockForUpdate()->find($this->publicationId);
             if (! $locked || $locked->status === PublicationStatus::Published || ! $locked->canBeDispatched()) {
-                return null;
-            }
-
-            $detector = $duplicateDetector ?? app(NewsDuplicateDetector::class);
-            $isDuplicate = Publication::query()
-                ->where('agency_id', $locked->agency_id)
-                ->where('status', PublicationStatus::Published)
-                ->whereKeyNot($locked->id)
-                ->with('article:id,title')
-                ->latest('id')
-                ->limit(2000)
-                ->get()
-                ->contains(fn (Publication $published): bool => $published->article !== null
-                    && $detector->titlesAreSimilar($locked->article->title, $published->article->title));
-
-            if ($isDuplicate) {
-                $locked->forceFill([
-                    'status' => PublicationStatus::Failed,
-                    'failure_message' => '[KALICI] Aynı olay daha önce yayımlandığı için tekrar gönderim engellendi.',
-                    'completed_at' => now(),
-                ])->save();
-
                 return null;
             }
 

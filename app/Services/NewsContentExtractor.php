@@ -38,12 +38,12 @@ class NewsContentExtractor
      *     crawled_pages: int
      * }
      */
-    public function extract(string $url, int $agencyId, bool $allowInsecureTls = false): array
+    public function extract(string $url, int $agencyId, bool $allowInsecureTls = false, int $lookbackDays = 2): array
     {
         $this->allowInsecureTls = $allowInsecureTls;
 
         try {
-            return $this->extractFromUrl($url, $agencyId);
+            return $this->extractFromUrl($url, $agencyId, min(30, max(1, $lookbackDays)));
         } finally {
             $this->allowInsecureTls = false;
         }
@@ -59,7 +59,7 @@ class NewsContentExtractor
      *     crawled_pages: int
      * }
      */
-    private function extractFromUrl(string $url, int $agencyId): array
+    private function extractFromUrl(string $url, int $agencyId, int $lookbackDays): array
     {
         $response = $this->fetch($url);
         $body = $this->validBody($response);
@@ -67,13 +67,13 @@ class NewsContentExtractor
         if ($this->looksLikeJson($response, $body)) {
             $items = $this->hydrateLinkedArticles($this->parseJson($body, $url), $url);
 
-            return $this->result($items, 'json_api', $url, $response, $body);
+            return $this->result($items, 'json_api', $url, $response, $body, $lookbackDays);
         }
 
         if ($this->looksLikeXml($response, $body)) {
             $items = $this->hydrateLinkedArticles($this->parseXml($body, $url), $url);
 
-            return $this->result($items, 'rss_atom_xml', $url, $response, $body);
+            return $this->result($items, 'rss_atom_xml', $url, $response, $body, $lookbackDays);
         }
 
         if (! $this->looksLikeHtml($response, $body)) {
@@ -92,7 +92,7 @@ class NewsContentExtractor
             if ($this->validSize($candidateBody) && $this->looksLikeXml($candidateResponse, $candidateBody)) {
                 $items = $this->hydrateLinkedArticles($this->parseXml($candidateBody, $candidate), $candidate);
 
-                return $this->result($items, 'rss_atom_xml', $candidate, $candidateResponse, $candidateBody);
+                return $this->result($items, 'rss_atom_xml', $candidate, $candidateResponse, $candidateBody, $lookbackDays);
             }
         }
 
@@ -109,7 +109,7 @@ class NewsContentExtractor
                 try {
                     $items = $this->hydrateLinkedArticles($this->parseJson($candidateBody, $candidate), $candidate);
 
-                    return $this->result($items, 'wordpress_json_api', $candidate, $candidateResponse, $candidateBody);
+                    return $this->result($items, 'wordpress_json_api', $candidate, $candidateResponse, $candidateBody, $lookbackDays);
                 } catch (RuntimeException) {
                     continue;
                 }
@@ -131,7 +131,7 @@ class NewsContentExtractor
         }
 
         return [
-            'items' => $this->filterRecentItems($items),
+            'items' => $this->filterRecentItems($items, $lookbackDays),
             'method' => 'html_dom_crawl',
             'url' => $url,
             'status' => $response->status(),
@@ -760,8 +760,14 @@ class NewsContentExtractor
         }
 
         $url = $this->resolveUrl($baseUrl, (string) $value);
+        $path = (string) parse_url($url, PHP_URL_PATH);
+        $basePath = (string) parse_url($baseUrl, PHP_URL_PATH);
 
-        if (preg_match('~(?:^|[/_-])(?:logo|favicon|avatar|placeholder|default[-_]?image|no[-_]?image)(?:[/_.-]|$)~iu', (string) parse_url($url, PHP_URL_PATH)) === 1) {
+        if ($url === rtrim($baseUrl, '/')
+            || $path === ''
+            || $path === '/'
+            || $path === $basePath
+            || preg_match('~(?:^|[/_-])(?:logo|favicon|avatar|placeholder|default[-_]?image|no[-_]?image)(?:[/_.-]|$)~iu', $path) === 1) {
             return null;
         }
 
@@ -807,9 +813,9 @@ class NewsContentExtractor
      * @param  array<int, array{external_id: ?string, title: string, body: string, url: ?string, image_url: ?string, published_at: Carbon}>  $items
      * @return array{items: array<int, array{external_id: ?string, title: string, body: string, url: ?string, image_url: ?string, published_at: Carbon}>, method: string, url: string, status: int, fingerprint: string, crawled_pages: int}
      */
-    private function result(array $items, string $method, string $url, Response $response, string $body): array
+    private function result(array $items, string $method, string $url, Response $response, string $body, int $lookbackDays): array
     {
-        $items = $this->filterRecentItems($items);
+        $items = $this->filterRecentItems($items, $lookbackDays);
 
         return [
             'items' => $items,
@@ -822,11 +828,11 @@ class NewsContentExtractor
     }
 
     /** @param array<int, array{published_at: Carbon}> $items */
-    private function filterRecentItems(array $items): array
+    private function filterRecentItems(array $items, int $lookbackDays = 2): array
     {
         return array_values(array_filter(
             $items,
-            fn (array $item): bool => $item['published_at']->greaterThanOrEqualTo(now()->subDays(2)),
+            fn (array $item): bool => $item['published_at']->greaterThanOrEqualTo(now()->subDays($lookbackDays)),
         ));
     }
 

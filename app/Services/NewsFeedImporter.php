@@ -18,7 +18,7 @@ class NewsFeedImporter
     ) {}
 
     /** @return array{received: int, imported: int, skipped: int, method: string, item_ids: array<int, int>, daily_limit: int, daily_remaining: int} */
-    public function import(NewsSource $source): array
+    public function import(NewsSource $source, int $lookbackDays = 2): array
     {
         if (! $source->is_active || blank($source->feed_url)) {
             throw new RuntimeException('Kaynak etkin değil veya haber sayfası adresi girilmemiş.');
@@ -43,7 +43,7 @@ class NewsFeedImporter
             ];
         }
 
-        $extraction = $this->extractor->extract((string) $source->feed_url, $source->agency_id, $source->allow_insecure_tls);
+        $extraction = $this->extractor->extract((string) $source->feed_url, $source->agency_id, $source->allow_insecure_tls, $lookbackDays);
         $items = $extraction['items'];
         $imported = 0;
         $skipped = 0;

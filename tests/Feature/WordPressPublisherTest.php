@@ -205,6 +205,27 @@ class WordPressPublisherTest extends TestCase
         $this->assertSame('Uzak sunucu erişilemiyor.', $failed->fresh()->failure_message);
     }
 
+    public function test_publication_job_does_not_block_a_new_wordpress_send_for_a_similar_local_title(): void
+    {
+        $publication = $this->publication(['title' => 'Cumhuriyet Bayramı Ne Zaman? Tarihi ve Merak Edilenler']);
+        $previous = Publication::factory()
+            ->for($publication->agency)
+            ->for($publication->publishingTarget)
+            ->for($publication->creator, 'creator')
+            ->create(['status' => PublicationStatus::Published]);
+        $previous->article->update(['title' => 'Cumhuriyet Bayramı Ne Zaman? Tarihi ve Merak Edilenler']);
+        $previous->update(['status' => PublicationStatus::Published]);
+
+        $this->mock(WordPressPublisher::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('publish')->once()->andReturn(['post_id' => '124', 'media_id' => null, 'url' => 'https://news.example.com/cumhuriyet-bayrami', 'response_meta' => ['driver' => 'rest']]);
+        });
+
+        (new PublishArticleToWordPress($publication->id))->handle(app(WordPressPublisher::class));
+
+        $this->assertSame(PublicationStatus::Published, $publication->fresh()->status);
+        $this->assertSame('124', $publication->fresh()->remote_post_id);
+    }
+
     public function test_rest_driver_skips_terms_without_create_permission_and_still_publishes(): void
     {
         Storage::fake('public');

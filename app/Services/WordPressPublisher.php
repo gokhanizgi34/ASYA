@@ -58,11 +58,26 @@ class WordPressPublisher
         )->throw()->json();
 
         if (is_array($existing) && isset($existing[0]['id'])) {
+            $post = $this->sendObserved(
+                $publication,
+                $apiUrl.'/posts/'.(int) $existing[0]['id'],
+                HttpMethod::Post,
+                'WordPress yazısı güncelleme',
+                fn (): Response => $this->request($target->username, $target->credential)->post($apiUrl.'/posts/'.(int) $existing[0]['id'], [
+                    'title' => $payload['title'],
+                    'slug' => $payload['slug'],
+                    'content' => $this->formatContent($payload['content'], $publication),
+                    'excerpt' => $payload['excerpt'],
+                    'status' => $publication->remote_status->value,
+                    'meta' => $payload['meta'],
+                ]),
+            )->throw()->json();
+
             return [
                 'post_id' => (string) $existing[0]['id'],
                 'media_id' => $publication->remote_media_id,
-                'url' => $existing[0]['link'] ?? null,
-                'response_meta' => ['driver' => 'rest', 'reused_existing_post' => true],
+                'url' => $post['link'] ?? $existing[0]['link'] ?? null,
+                'response_meta' => ['driver' => 'rest', 'reused_existing_post' => true, 'updated_existing_post' => true],
             ];
         }
 

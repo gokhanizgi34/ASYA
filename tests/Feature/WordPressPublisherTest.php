@@ -73,22 +73,32 @@ class WordPressPublisherTest extends TestCase
         app(WordPressPublisher::class)->publish($publication);
     }
 
-    public function test_rest_driver_reuses_existing_slug_without_uploading_or_creating(): void
+    public function test_rest_driver_updates_existing_slug_without_creating_a_duplicate(): void
     {
         Storage::fake('public');
         $publication = $this->publication();
         $publication->forceFill(['remote_status' => RemotePublicationStatus::Publish])->save();
         Http::preventStrayRequests();
-        Http::fake(['https://news.example.com/wp-json/wp/v2/posts*' => Http::response([['id' => 77, 'link' => 'https://news.example.com/existing']])]);
+        Http::fake(function (Request $request) {
+            if ($request->method() === 'GET') {
+                return Http::response([['id' => 77, 'link' => 'https://news.example.com/existing']]);
+            }
+
+            return Http::response(['id' => 77, 'link' => 'https://news.example.com/existing']);
+        });
 
         $result = app(WordPressPublisher::class)->publish($publication);
 
         $this->assertSame('77', $result['post_id']);
         $this->assertTrue($result['response_meta']['reused_existing_post']);
+        $this->assertTrue($result['response_meta']['updated_existing_post']);
         Http::assertSent(fn (Request $request): bool => $request->method() === 'GET'
             && data_get($request->data(), 'status') === 'publish'
             && data_get($request->data(), 'context') === 'view');
-        Http::assertSentCount(1);
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
+            && str_ends_with($request->url(), '/posts/77')
+            && str_contains((string) data_get($request->data(), 'content'), 'https://news.example.com/?s='));
+        Http::assertSentCount(2);
         $this->assertDatabaseHas('learned_routes', ['agency_id' => $publication->agency_id, 'path_pattern' => '/wp-json/wp/v2/posts', 'method' => 'GET', 'successful_count' => 1]);
     }
 

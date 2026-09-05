@@ -49,6 +49,7 @@ return [
         'x_endpoint' => env('X_TRENDS_ENDPOINT', 'https://api.x.com/2/trends/by/woeid'),
         'x_rss_url' => env('X_TRENDS_RSS_URL', 'https://www.twitter-trending.com/rss/feed?c=turkey&gmt_z=Europe/Istanbul&l=tr'),
         'x_web_url' => env('X_TRENDS_WEB_URL', 'https://trends24.in/turkey/'),
+        'news_search_rss_url' => env('TREND_NEWS_SEARCH_RSS_URL', 'https://news.google.com/rss/search'),
         'x_woeid' => (int) env('X_TRENDS_WOEID', 23424969),
         'x_max_trends' => (int) env('X_TRENDS_MAX', 10),
         'max_items_per_run' => (int) env('EXTERNAL_TRENDS_MAX_ITEMS', 20),

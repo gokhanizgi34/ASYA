@@ -206,6 +206,35 @@ class ExternalTrendCollectorTest extends TestCase
         Queue::assertNothingPushed();
     }
 
+    public function test_event_trend_uses_news_search_context_instead_of_publishing_the_trend_sentence(): void
+    {
+        Cache::flush();
+        Queue::fake([ProcessContentBatch::class]);
+        Http::preventStrayRequests();
+        config([
+            'services.external_trends.x_rss_url' => 'https://93.184.216.34/x-rss',
+            'services.external_trends.news_search_rss_url' => 'https://93.184.216.34/news-search',
+            'services.external_trends.x_max_trends' => 2,
+        ]);
+        Http::fake([
+            'https://93.184.216.34/x-rss' => Http::response($this->eventTrendRss(), 200, ['Content-Type' => 'application/rss+xml']),
+            'https://93.184.216.34/news-search*' => Http::response($this->newsSearchRss(), 200, ['Content-Type' => 'application/rss+xml']),
+        ]);
+        $agency = Agency::factory()->create();
+        SystemSetting::factory()->for($agency)->create(['key' => 'trends.google_daily_item_limit', 'value' => '0', 'type' => SettingValueType::Integer]);
+        User::factory()->editor()->for($agency)->create();
+        ApiIntegration::factory()->ai(IntegrationProvider::GoogleGemini)->for($agency)->create(['is_active' => true, 'credential' => 'gemini-key']);
+        PublishingTarget::factory()->for($agency)->create(['is_active' => true]);
+
+        $result = app(ExternalTrendCollector::class)->collect($agency->id);
+
+        $this->assertSame(['received' => 1, 'imported' => 1, 'queued' => 1], $result);
+        $rawNews = RawNewsItem::query()->firstOrFail();
+        $this->assertStringContainsString('Filenin Sultanları', $rawNews->original_title);
+        $this->assertStringContainsString('Sırbistan', $rawNews->original_body);
+        $this->assertSame(0, RawNewsItem::query()->where('original_title', 'like', '%X gündeminde öne çıktı')->count());
+    }
+
     private function googleTrendsRss(): string
     {
         return <<<'XML'
@@ -249,6 +278,24 @@ HTML;
 <title>Twitter Trending</title>
 <item><title>Turkey Twitter Trends</title><content:encoded><![CDATA[<p>Twitter Trends Turkey: 1) Cuma Mesajları 2) Başakşehir 3) Eski konu ..[top50]</p>]]></content:encoded></item>
 <item><title>Eski liste</title><content:encoded><![CDATA[<p>Twitter Trends Turkey: 1) Dünkü konu</p>]]></content:encoded></item>
+</channel></rss>
+XML;
+    }
+
+    private function eventTrendRss(): string
+    {
+        return <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?><rss xmlns:content="http://purl.org/rss/1.0/modules/content/" version="2.0"><channel><item><title>Turkey Twitter Trends</title><content:encoded><![CDATA[<p>Twitter Trends Turkey: 1) Sırbistan 3-0 ..[top50]</p>]]></content:encoded></item></channel></rss>
+XML;
+    }
+
+    private function newsSearchRss(): string
+    {
+        return <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel>
+<item><title>Filenin Sultanları Sırbistan'ı 3-0 Yenerek Finale Yükseldi</title><link>https://news.example.com/filenin-sultanlari-finalde</link><description>A Milli Kadın Voleybol Takımı, Sırbistan'ı 3-0 mağlup ederek Avrupa Şampiyonası'nda finale yükseldi. Ay-yıldızlı ekip mücadelede set vermeden önemli bir galibiyet aldı.</description></item>
+<item><title>Türkiye Voleybol Takımı Sırbistan'ı Mağlup Etti</title><link>https://news.example.com/turkiye-sirbistan</link><description>Türkiye, yarı final karşılaşmasında üstün oyunuyla rakibini geride bıraktı. Bu sonuç milli takımın finale yükselmesini sağladı.</description></item>
+<item><title>Filenin Sultanları Avrupa Şampiyonası Finalinde</title><link>https://news.example.com/final</link><description>Milli takımın galibiyeti spor gündeminin öne çıkan gelişmesi oldu. Final karşılaşması öncesinde takımın hazırlıkları devam ediyor.</description></item>
 </channel></rss>
 XML;
     }

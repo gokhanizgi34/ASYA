@@ -389,7 +389,7 @@ class ExternalTrendCollector
             'source' => 'X Gündemi',
             'title' => $name,
             'trend_name' => $name,
-            'body' => '“'.$name.'” başlığı Türkiye X gündem listesinde öne çıktı. RSS akışında başlığın güncel Türkiye sıralamasında yer aldığı bildirildi. Akış, Türkiye saat dilimi ve Türkçe dil seçeneğiyle yayımlanan listenin en yeni kaydından alındı. RSS verisi konu başlığını ve sıralamasını sağlıyor ancak paylaşım metinlerini, kişi iddialarını veya olay ayrıntılarını doğrulamıyor. Sıralama yalnızca kamuoyu ilgisini gösterir ve başlık altındaki iddiaların doğruluğunu kanıtlamaz. Haber hazırlanırken konu güvenilir haber kaynakları ve resmî açıklamalarla karşılaştırılmalıdır.',
+            'body' => 'Trend konusu doğrulanmış haber bağlamı bulunana kadar haberleştirilmeyecektir.',
             'url' => 'https://x.com/search?q='.rawurlencode($name),
             'image_url' => null,
             'score' => $score,
@@ -441,7 +441,7 @@ class ExternalTrendCollector
             ->first();
 
         if (! is_array($match) || ! $match['item'] instanceof RawNewsItem) {
-            return null;
+            return $this->findNewsSearchContext($item, $trendName);
         }
 
         $source = $match['item'];
@@ -455,6 +455,65 @@ class ExternalTrendCollector
             'trend_name' => $trendName,
             'matched_raw_news_id' => $source->id,
         ];
+    }
+
+    /** @param array<string, mixed> $item @return array<string, mixed>|null */
+    private function findNewsSearchContext(array $item, string $trendName): ?array
+    {
+        try {
+            $url = (string) config('services.external_trends.news_search_rss_url', 'https://news.google.com/rss/search');
+            $this->urlGuard->assertSafe($url);
+            $response = Http::accept('application/rss+xml, application/xml;q=0.9')
+                ->withUserAgent('ASYA-News-Automation/1.0')
+                ->connectTimeout(8)
+                ->timeout(20)
+                ->get($url, ['q' => $trendName, 'hl' => 'tr', 'gl' => 'TR', 'ceid' => 'TR:tr'])
+                ->throw();
+            $previous = libxml_use_internal_errors(true);
+            $xml = simplexml_load_string($response->body(), SimpleXMLElement::class, LIBXML_NONET | LIBXML_NOCDATA);
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+
+            if (! $xml instanceof SimpleXMLElement) {
+                return null;
+            }
+
+            $results = collect(iterator_to_array($xml->channel->item ?? []))
+                ->map(fn (SimpleXMLElement $result): array => [
+                    'title' => Str::of(html_entity_decode((string) $result->title, ENT_QUOTES | ENT_HTML5, 'UTF-8'))->squish()->limit(500, '')->toString(),
+                    'description' => Str::of(html_entity_decode((string) $result->description, ENT_QUOTES | ENT_HTML5, 'UTF-8'))->stripTags()->squish()->limit(3000, '')->toString(),
+                    'url' => (string) $result->link,
+                ])
+                ->filter(fn (array $result): bool => Str::length($result['title']) >= 20 && Str::length($result['description']) >= 80)
+                ->map(function (array $result) use ($trendName): array {
+                    $tokens = $this->trendTokens($trendName);
+                    $titleTokens = $this->trendTokens($result['title']);
+                    $result['match_score'] = count(array_intersect($tokens, $this->trendTokens($result['title'].' '.$result['description']))) * 10
+                        + count(array_intersect($tokens, $titleTokens));
+
+                    return $result;
+                })
+                ->sortByDesc('match_score')
+                ->take(3)
+                ->values();
+
+            if ($results->isEmpty()) {
+                return null;
+            }
+
+            $first = $results->first();
+
+            return [
+                ...$item,
+                'title' => $first['title'],
+                'body' => $results->map(fn (array $result): string => $result['title'].'. '.$result['description'])->implode("\n\n"),
+                'url' => $first['url'] ?: $item['url'],
+                'image_url' => null,
+                'trend_name' => $trendName,
+            ];
+        } catch (Throwable) {
+            return null;
+        }
     }
 
     private function isContentIntent(string $trendName): bool

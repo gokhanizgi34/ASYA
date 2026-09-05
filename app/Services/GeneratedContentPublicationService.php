@@ -11,6 +11,7 @@ use App\Models\SeoAnalysis;
 use App\Models\User;
 use App\RemotePublicationStatus;
 use App\SourceTrustStatus;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -22,7 +23,7 @@ class GeneratedContentPublicationService
     ) {}
 
     /**
-     * @param  array{title:string,summary:string,body:string,keywords?:array<int,string>,hashtags?:array<int,string>,category:string,source_type:string,source_id:string|int,slug?:string,destination?:string,scheduled_for?:\DateTimeInterface|string,schedule_timezone?:string}  $content
+     * @param  array{title:string,summary:string,body:string,keywords?:array<int,string>,hashtags?:array<int,string>,category:string,source_type:string,source_id:string|int,slug?:string,destination?:string,scheduled_for?:\DateTimeInterface|string,schedule_timezone?:string,uploaded_image?:UploadedFile}  $content
      */
     public function send(int $agencyId, User $creator, array $content): Article
     {
@@ -76,6 +77,10 @@ class GeneratedContentPublicationService
 
         if ($destination !== 'publish') {
             return $article;
+        }
+
+        if (($content['uploaded_image'] ?? null) instanceof UploadedFile) {
+            $this->visualManager->importUploadedImage($article, $content['uploaded_image']);
         }
 
         $this->visualManager->ensure($article);

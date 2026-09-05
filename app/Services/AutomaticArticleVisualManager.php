@@ -10,6 +10,7 @@ use App\Models\VisualAsset;
 use App\VisualAssetStatus;
 use App\VisualSourceType;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -23,10 +24,11 @@ class AutomaticArticleVisualManager
         private readonly AiIntegrationRegistry $registry,
         private readonly ExternalUrlGuard $urlGuard,
         private readonly NativeTlsHttpFetcher $nativeTlsHttpFetcher,
+        private readonly RenderedPageCapture $pageCapture,
         private readonly SystemSettings $settings,
     ) {}
 
-    public function ensure(Article $article, ?string $sourceImageUrl = null): ?VisualAsset
+    public function ensure(Article $article, ?string $sourceImageUrl = null, ?string $sourcePageUrl = null): ?VisualAsset
     {
         $selected = $article->selectedVisualAsset()->where('status', VisualAssetStatus::Approved)->first();
 
@@ -44,6 +46,22 @@ class AutomaticArticleVisualManager
                     'message' => $exception->getMessage(),
                 ]);
 
+            }
+        }
+
+        if (filled($sourcePageUrl)) {
+            try {
+                $screenshot = $this->captureSourcePage($article, $sourcePageUrl);
+
+                if ($screenshot) {
+                    return $screenshot;
+                }
+            } catch (Throwable $exception) {
+                Log::warning('Kaynak sayfanın ekran görüntüsü alınamadı.', [
+                    'article_id' => $article->id,
+                    'source_page_url' => $sourcePageUrl,
+                    'message' => $exception->getMessage(),
+                ]);
             }
         }
 
@@ -78,6 +96,18 @@ class AutomaticArticleVisualManager
         }
     }
 
+    public function importUploadedImage(Article $article, UploadedFile $image): VisualAsset
+    {
+        return $this->storeImage(
+            article: $article,
+            bytes: (string) $image->get(),
+            sourceType: VisualSourceType::Upload,
+            copyrightStatus: CopyrightStatus::Original,
+            sourceUrl: null,
+            generationPrompt: null,
+        );
+    }
+
     private function importAgencyLogo(Article $article): ?VisualAsset
     {
         $article->loadMissing('agency');
@@ -95,6 +125,31 @@ class AutomaticArticleVisualManager
             sourceUrl: null,
             generationPrompt: null,
         );
+    }
+
+    private function captureSourcePage(Article $article, string $sourcePageUrl): ?VisualAsset
+    {
+        $this->urlGuard->assertSafe($sourcePageUrl);
+        try {
+            $response = Http::accept('text/html')->withUserAgent('ASYA-News-Automation/1.0')->connectTimeout(10)->timeout(30)->get($sourcePageUrl);
+        } catch (ConnectionException $exception) {
+            $response = $this->nativeTlsHttpFetcher->fetch($sourcePageUrl, 'text/html', 'ASYA-News-Automation/1.0');
+        }
+        $response->throw();
+        $path = $this->pageCapture->capture($response->body());
+
+        try {
+            return $this->storeImage(
+                article: $article,
+                bytes: (string) file_get_contents($path),
+                sourceType: VisualSourceType::Original,
+                copyrightStatus: CopyrightStatus::Unknown,
+                sourceUrl: $sourcePageUrl,
+                generationPrompt: null,
+            );
+        } finally {
+            $this->pageCapture->remove($path);
+        }
     }
 
     private function pixabayAllowed(Article $article): bool

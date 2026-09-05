@@ -67,6 +67,7 @@ use App\Http\Controllers\SourceTrustController;
 use App\Http\Controllers\SupportTicketController;
 use App\Http\Controllers\SystemSettingController;
 use App\Http\Controllers\TaxonomyMappingController;
+use App\Http\Controllers\TopicArticleGenerationController;
 use App\Http\Controllers\TrendAnalysisController;
 use App\Http\Controllers\TrendTopicController;
 use App\Http\Controllers\UserController;
@@ -102,6 +103,7 @@ Route::middleware(['auth', EnsureUserIsActive::class, ApplySystemSettings::class
         ->names('raw-news');
 
     Route::patch('/haberler/toplu-islem', ArticleBulkActionController::class)->name('articles.bulk-action');
+    Route::post('/haberler/konudan-uret', TopicArticleGenerationController::class)->name('articles.generate-topic');
     Route::post('/haberler/{article}/yeniden-dene', ArticleRetryController::class)->name('articles.retry');
     Route::get('/haberler/{article}/seo', [SeoAnalysisController::class, 'show'])->name('seo.show');
     Route::post('/haberler/{article}/seo', [SeoAnalysisController::class, 'analyze'])->name('seo.analyze');

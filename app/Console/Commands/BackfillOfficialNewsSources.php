@@ -28,7 +28,7 @@ class BackfillOfficialNewsSources extends Command
 
         foreach ($sources as $source) {
             try {
-                $result = $importer->import($source, $days);
+                $result = $importer->import($source, $days, true);
                 $pipeline->start($source, $result['item_ids']);
                 $imported += $result['imported'];
                 $this->info($source->name.': '.$result['imported'].' yeni haber alındı.');

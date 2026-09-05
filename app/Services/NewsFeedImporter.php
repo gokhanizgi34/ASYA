@@ -18,7 +18,7 @@ class NewsFeedImporter
     ) {}
 
     /** @return array{received: int, imported: int, skipped: int, method: string, item_ids: array<int, int>, daily_limit: int, daily_remaining: int} */
-    public function import(NewsSource $source, int $lookbackDays = 2): array
+    public function import(NewsSource $source, int $lookbackDays = 2, bool $ignoreDailyLimit = false): array
     {
         if (! $source->is_active || blank($source->feed_url)) {
             throw new RuntimeException('Kaynak etkin değil veya haber sayfası adresi girilmemiş.');
@@ -29,7 +29,7 @@ class NewsFeedImporter
             ->where('news_source_id', $source->id)
             ->whereDate('created_at', today())
             ->count();
-        $remaining = max(0, $dailyLimit - $usedToday);
+        $remaining = $ignoreDailyLimit ? 50 : max(0, $dailyLimit - $usedToday);
 
         if ($remaining === 0) {
             return [
@@ -161,7 +161,7 @@ class NewsFeedImporter
             'method' => $extraction['method'],
             'item_ids' => $itemIds,
             'daily_limit' => $dailyLimit,
-            'daily_remaining' => max(0, $remaining - $imported),
+            'daily_remaining' => $ignoreDailyLimit ? 0 : max(0, $remaining - $imported),
         ];
     }
 

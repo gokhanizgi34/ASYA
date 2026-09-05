@@ -31,7 +31,7 @@ class ApiIntegrationController extends Controller
             'mailSettings' => AgencyMailSetting::query()->visibleTo($user)->with('agency')->orderBy('agency_id')->get(),
             'mailAgencies' => $this->agencies($user),
             'mailSchemes' => MailTransportScheme::cases(),
-            'aiProviders' => collect(IntegrationProvider::cases())->filter(fn (IntegrationProvider $provider): bool => $provider->isAi() || $provider === IntegrationProvider::XTrends)->values(),
+            'aiProviders' => collect(IntegrationProvider::cases())->filter->usesSimpleSetup()->values(),
         ]);
     }
 
@@ -130,7 +130,7 @@ class ApiIntegrationController extends Controller
         return [
             'agencies' => $this->agencies($user, $integration?->agency_id),
             'providers' => IntegrationProvider::cases(),
-            'aiProviders' => array_values(array_filter(IntegrationProvider::cases(), fn (IntegrationProvider $provider): bool => $provider->isAi() || $provider === IntegrationProvider::XTrends)),
+            'aiProviders' => array_values(array_filter(IntegrationProvider::cases(), fn (IntegrationProvider $provider): bool => $provider->usesSimpleSetup())),
             'authTypes' => IntegrationAuthType::cases(),
         ];
     }

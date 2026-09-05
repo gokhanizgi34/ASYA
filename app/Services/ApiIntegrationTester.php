@@ -54,6 +54,14 @@ class ApiIntegrationTester
                 ]);
             } elseif ($integration->provider === IntegrationProvider::GitHubModels) {
                 $response = $this->request($integration)->post($testUrl, ['model' => $integration->model, 'messages' => [['role' => 'user', 'content' => 'Reply with OK.']], 'max_tokens' => 2]);
+            } elseif ($integration->provider === IntegrationProvider::Pixabay) {
+                $response = $this->request($integration)->get($testUrl, [
+                    'q' => 'food',
+                    'image_type' => 'photo',
+                    'orientation' => 'horizontal',
+                    'safesearch' => 'true',
+                    'per_page' => 3,
+                ]);
             } else {
                 $response = $this->request($integration)->get($testUrl, $integration->provider === IntegrationProvider::XTrends ? ['max_trends' => 1] : []);
             }
@@ -104,6 +112,10 @@ class ApiIntegrationTester
             ->acceptJson();
 
         if ($integration->provider === IntegrationProvider::GoogleGemini) {
+            return $request->withQueryParameters(['key' => (string) $integration->credential]);
+        }
+
+        if ($integration->provider === IntegrationProvider::Pixabay) {
             return $request->withQueryParameters(['key' => (string) $integration->credential]);
         }
 

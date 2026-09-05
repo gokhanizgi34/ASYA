@@ -69,7 +69,7 @@ class ContentBatchProcessor
             $content = $this->transformer->transform($rawNewsItem, $promptSnapshot, $isAutomatic);
             $articleId = $this->storeArticle($contentBatchItemId, $batch, $content);
 
-            if ($isAutomatic && $articleId) {
+            if ($isAutomatic && $articleId && ($content['destination'] ?? 'publish') === 'publish') {
                 FinalizeAutomaticArticle::dispatch($articleId)
                     ->onQueue('content')
                     ->afterCommit();
@@ -156,6 +156,9 @@ class ContentBatchProcessor
                     'hashtags' => $content['hashtags'] ?? [],
                     'category' => $content['category'] ?? 'Gündem',
                     'ai_provider' => $content['ai_provider'] ?? null,
+                    'editorial_engine' => $content['editorial_engine'] ?? 'ai',
+                    'style_profile_id' => $content['style_profile_id'] ?? null,
+                    'destination' => $content['destination'] ?? 'publish',
                 ],
                 'status' => ArticleStatus::Draft,
                 'source_trust_status' => SourceTrustStatus::Unverified,

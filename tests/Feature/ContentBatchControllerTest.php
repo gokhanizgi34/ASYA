@@ -25,6 +25,28 @@ class ContentBatchControllerTest extends TestCase
         $this->get(route('content-batches.index'))->assertRedirect(route('login'));
     }
 
+    public function test_owner_can_open_content_batch_detail_page(): void
+    {
+        $agency = Agency::factory()->create();
+        $owner = User::factory()->agencyOwner()->for($agency)->create();
+        $batch = ContentBatch::factory()->for($agency)->create([
+            'created_by' => $owner->id,
+            'name' => 'Avcılar Otomatik Haber Üretimi',
+            'total_items' => 1,
+        ]);
+        $rawNews = RawNewsItem::factory()->for($agency)->create([
+            'original_title' => 'Avcılar için yeni çalışma başladı',
+        ]);
+        ContentBatchItem::factory()->for($batch)->for($rawNews, 'rawNewsItem')->create();
+
+        $this->actingAs($owner)
+            ->get(route('content-batches.show', $batch))
+            ->assertOk()
+            ->assertSee('Avcılar Otomatik Haber Üretimi')
+            ->assertSee('Avcılar için yeni çalışma başladı')
+            ->assertSee('Kuyruğu tetikle');
+    }
+
     public function test_agency_user_sees_only_own_batches_and_escaped_names(): void
     {
         $ownAgency = Agency::factory()->create();

@@ -55,7 +55,10 @@ class NewsFeedImporter
 
             $existingItem = RawNewsItem::withTrashed()
                 ->where('agency_id', $source->agency_id)
-                ->where('checksum', $checksum)
+                ->where(function ($query) use ($checksum, $item): void {
+                    $query->where('checksum', $checksum)
+                        ->orWhere('source_url', $item['url']);
+                })
                 ->first();
 
             if (! $existingItem && $this->duplicateDetector->exists($source->agency_id, $normalizedTitle)) {

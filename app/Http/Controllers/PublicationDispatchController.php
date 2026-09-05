@@ -13,7 +13,7 @@ class PublicationDispatchController extends Controller
     public function __invoke(Publication $publication): RedirectResponse
     {
         Gate::authorize('update', $publication);
-        abort_unless($publication->status === PublicationStatus::Failed, 422, 'Yalnızca başarısız yayınlar yeniden kuyruğa alınabilir.');
+        abort_unless($publication->canBeDispatched(), 422, 'Yalnızca bekleyen veya başarısız yayınlar kuyruğa alınabilir.');
         abort_unless($publication->publishingTarget()->where('is_active', true)->exists(), 422, 'Yayın hedefi aktif değil.');
 
         $publication->forceFill([

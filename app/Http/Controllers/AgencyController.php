@@ -91,6 +91,7 @@ class AgencyController extends Controller
     public function update(UpdateAgencyRequest $request, Agency $agency): RedirectResponse
     {
         $data = $request->validated();
+        $data['recipe_daily_quota'] ??= $agency->recipe_daily_quota;
         if ($request->hasFile('logo')) {
             if ($agency->logo_path) {
                 Storage::disk('public')->delete($agency->logo_path);

@@ -67,7 +67,8 @@ class WordPressPublisher
 
         $categories = $this->resolveRestTerms($publication, $apiUrl, 'categories', (array) ($payload['categories'] ?? []), (array) data_get($payload, 'taxonomy_names.categories', []));
         $tags = $this->resolveRestTerms($publication, $apiUrl, 'tags', (array) ($payload['tags'] ?? []), (array) data_get($payload, 'taxonomy_names.tags', []));
-        $mediaId = $publication->remote_media_id ?: $this->uploadRestMedia($publication, $request, $apiUrl, $payload['media']);
+        $media = data_get($payload, 'media');
+        $mediaId = $publication->remote_media_id ?: (is_array($media) ? $this->uploadRestMedia($publication, $request, $apiUrl, $media) : null);
         if (! $publication->remote_media_id) {
             $publication->forceFill(['remote_media_id' => $mediaId])->save();
         }
@@ -79,18 +80,23 @@ class WordPressPublisher
             'excerpt' => $payload['excerpt'],
             'status' => $publication->remote_status->value,
             'featured_media' => $mediaId,
-            'author' => $payload['author'],
             'categories' => $categories,
             'tags' => $tags,
             'meta' => $payload['meta'],
         ], static fn (mixed $value): bool => $value !== null && $value !== [] && $value !== '');
-        $post = $this->sendObserved(
+        $postResponse = $this->sendObserved(
             $publication,
             $apiUrl.'/posts',
             HttpMethod::Post,
             'WordPress yazısı oluşturma',
             fn (): Response => $this->request($target->username, $target->credential)->post($apiUrl.'/posts', $postPayload),
-        )->throw()->json();
+        );
+
+        if (in_array($postResponse->status(), [401, 403], true) && $postResponse->json('code') === 'rest_cannot_create') {
+            throw new RuntimeException('WordPress kullanıcısı yazı oluşturmaya yetkili değil. Kullanıcı rolünü Editör/Yönetici yapın veya doğru kullanıcı uygulama parolası kullanın.');
+        }
+
+        $post = $postResponse->throw()->json();
 
         if (! isset($post['id'])) {
             throw new RuntimeException('WordPress geçerli bir yazı kimliği döndürmedi.');
@@ -177,14 +183,20 @@ class WordPressPublisher
     /** @param array{disk: string, path: string, title: string|null, alt_text: string|null} $media */
     private function uploadRestMedia(Publication $publication, PendingRequest $request, string $apiUrl, array $media): int
     {
-        $response = $this->sendObserved(
+        $mediaResponse = $this->sendObserved(
             $publication,
             $apiUrl.'/media',
             HttpMethod::Post,
             'WordPress medya yükleme',
             fn (): Response => $request->attach('file', Storage::disk($media['disk'])->get($media['path']), basename($media['path']))
                 ->post($apiUrl.'/media', array_filter(['title' => $media['title'], 'alt_text' => $media['alt_text']])),
-        )->throw()->json();
+        );
+
+        if (in_array($mediaResponse->status(), [401, 403], true) && $mediaResponse->json('code') === 'rest_cannot_create') {
+            throw new RuntimeException('WordPress kullanıcısı medya yüklemeye yetkili değil. Kullanıcı rolünü Editör/Yönetici yapın veya doğru kullanıcı uygulama parolası kullanın.');
+        }
+
+        $response = $mediaResponse->throw()->json();
 
         if (! isset($response['id'])) {
             throw new RuntimeException('WordPress geçerli bir medya kimliği döndürmedi.');
@@ -201,7 +213,7 @@ class WordPressPublisher
         $payload = $publication->payload;
         $mediaId = $publication->remote_media_id;
 
-        if (! $mediaId) {
+        if (! $mediaId && is_array($payload['media'] ?? null)) {
             $media = $payload['media'];
             $upload = $this->xmlRpcCall($publication, $endpoint, 'wp.uploadFile', [
                 0,

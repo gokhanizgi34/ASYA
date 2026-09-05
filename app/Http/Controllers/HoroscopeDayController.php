@@ -22,6 +22,6 @@ class HoroscopeDayController extends Controller
             return back()->withInput()->withErrors(['agency_id' => $exception->getMessage()]);
         }
 
-        return redirect()->route('horoscopes.index', ['date' => $data['forecast_date']])->with('success', 'On iki burç için AI destekli günlük taslaklar hazırlandı.');
+        return redirect()->route('horoscopes.index', ['date' => $data['forecast_date']])->with('success', 'On iki burç üretildi ve tek günlük içerik olarak Yayın Merkezi’ne gönderildi.');
     }
 }

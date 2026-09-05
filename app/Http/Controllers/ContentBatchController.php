@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\ContentBatchStatus;
 use App\Http\Requests\StoreContentBatchRequest;
+use App\Http\Requests\UpdateContentBatchRequest;
 use App\Jobs\ProcessContentBatch;
 use App\Models\Agency;
 use App\Models\AiPrompt;
@@ -107,6 +108,35 @@ class ContentBatchController extends Controller
         ProcessContentBatch::dispatch($batch->id)->onQueue('content')->afterCommit();
 
         return redirect()->route('content-batches.show', $batch)->with('success', 'Üretim bandı oluşturuldu ve içerik kuyruğuna gönderildi.');
+    }
+
+    public function edit(ContentBatch $contentBatch): View
+    {
+        Gate::authorize('update', $contentBatch);
+
+        return view('content-batches.edit', ['batch' => $contentBatch]);
+    }
+
+    public function update(UpdateContentBatchRequest $request, ContentBatch $contentBatch): RedirectResponse
+    {
+        $contentBatch->update($request->validated());
+
+        return redirect()->route('content-batches.show', $contentBatch)->with('success', 'Üretim bandı güncellendi.');
+    }
+
+    public function destroy(ContentBatch $contentBatch): RedirectResponse
+    {
+        Gate::authorize('delete', $contentBatch);
+        DB::transaction(function () use ($contentBatch): void {
+            $contentBatch->items()->whereNull('article_id')->with('rawNewsItem')->get()->each(function (ContentBatchItem $item): void {
+                if ($item->rawNewsItem && $item->rawNewsItem->status !== RawNewsStatus::Processed) {
+                    $item->rawNewsItem->update(['status' => RawNewsStatus::Pending, 'failure_message' => null]);
+                }
+            });
+            $contentBatch->delete();
+        }, 5);
+
+        return redirect()->route('content-batches.index')->with('success', 'Üretim bandı silindi; işlenmemiş haberler havuza döndürüldü.');
     }
 
     public function show(ContentBatch $contentBatch): View

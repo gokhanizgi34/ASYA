@@ -11,6 +11,7 @@ use App\PublicationStatus;
 use App\PublishingProtocol;
 use App\RemotePublicationStatus;
 use App\Services\WordPressPublisher;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Http\Client\RequestException;
@@ -49,6 +50,24 @@ class WordPressPublisherTest extends TestCase
         Http::assertSent(fn (Request $request): bool => $request->method() === 'POST' && str_ends_with($request->url(), '/posts') && str_contains((string) data_get($request->data(), 'content'), '<h2>Güvenli başlık</h2>') && str_contains((string) data_get($request->data(), 'content'), '&lt;script&gt;') && ! str_contains((string) data_get($request->data(), 'content'), '<script>'));
         Http::assertSentCount(3);
         $this->assertDatabaseHas('learned_routes', ['agency_id' => $publication->agency_id, 'path_pattern' => '/wp-json/wp/v2/posts', 'method' => 'POST', 'successful_count' => 1]);
+    }
+
+    public function test_rest_cannot_create_error_explains_wordpress_permission_requirement(): void
+    {
+        Http::fake(function (Request $request) {
+            if ($request->method() === 'GET') {
+                return Http::response([]);
+            }
+
+            return str_ends_with($request->url(), '/media')
+                ? Http::response(['id' => 1], 201)
+                : Http::response(['code' => 'rest_cannot_create', 'message' => 'No permission'], 401);
+        });
+        $publication = $this->publication();
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('WordPress kullanıcısı yazı oluşturmaya yetkili değil');
+        app(WordPressPublisher::class)->publish($publication);
     }
 
     public function test_rest_driver_reuses_existing_slug_without_uploading_or_creating(): void
@@ -151,6 +170,16 @@ class WordPressPublisherTest extends TestCase
         }
     }
 
+    public function test_publication_job_is_unique_per_publication(): void
+    {
+        $publication = $this->publication();
+        $job = new PublishArticleToWordPress($publication->id);
+
+        $this->assertInstanceOf(ShouldBeUnique::class, $job);
+        $this->assertSame((string) $publication->id, $job->uniqueId());
+        $this->assertSame(600, $job->uniqueFor);
+    }
+
     public function test_job_persists_success_and_failure_states(): void
     {
         $successful = $this->publication();
@@ -163,12 +192,15 @@ class WordPressPublisherTest extends TestCase
         $this->assertSame('123', $successful->fresh()->remote_post_id);
         $this->assertSame(1, $successful->fresh()->attempt_count);
 
-        $failed = $this->publication();
+        $failed = $this->publication(['target_url' => 'https://failed-news.example.com']);
         $this->mock(WordPressPublisher::class, function (MockInterface $mock): void {
             $mock->shouldReceive('publish')->once()->andThrow(new RuntimeException('Uzak sunucu erişilemiyor.'));
         });
 
-        (new PublishArticleToWordPress($failed->id))->handle(app(WordPressPublisher::class));
+        try {
+            (new PublishArticleToWordPress($failed->id))->handle(app(WordPressPublisher::class));
+        } catch (RuntimeException) {
+        }
         $this->assertSame(PublicationStatus::Failed, $failed->fresh()->status);
         $this->assertSame('Uzak sunucu erişilemiyor.', $failed->fresh()->failure_message);
     }
@@ -213,7 +245,8 @@ class WordPressPublisherTest extends TestCase
     {
         $agency = Agency::factory()->create();
         $user = User::factory()->agencyOwner()->for($agency)->create();
-        $target = PublishingTarget::factory()->for($agency)->create(['base_url' => 'https://news.example.com', 'protocol' => $protocol, 'username' => 'publisher', 'credential' => 'application-password']);
+        $target = PublishingTarget::factory()->for($agency)->create(['base_url' => $payloadOverrides['target_url'] ?? 'https://news.example.com', 'protocol' => $protocol, 'username' => 'publisher', 'credential' => 'application-password']);
+        unset($payloadOverrides['target_url']);
         $payload = array_replace_recursive([
             'title' => 'Test haberi', 'slug' => 'test-haberi', 'content' => 'Test içeriği', 'excerpt' => 'Test özeti', 'author' => 1,
             'categories' => [2], 'tags' => [8], 'meta' => ['asya_focus_keyword' => 'test'],

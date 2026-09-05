@@ -8,7 +8,6 @@ use App\Models\Publication;
 use App\Models\PublishingTarget;
 use App\RemotePublicationStatus;
 use App\SourceTrustStatus;
-use App\VisualAssetStatus;
 use DateTimeZone;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -57,8 +56,6 @@ class StorePublicationRequest extends FormRequest
                 $validator->errors()->add('article_id', 'Yayın için haber yayımlanmış durumda ve kaynağı doğrulanmış olmalıdır.');
             } elseif (! $article->seoAnalysis) {
                 $validator->errors()->add('article_id', 'Yayın için haber SEO analizinden geçirilmelidir.');
-            } elseif (! $article->selectedVisualAsset || $article->selectedVisualAsset->status !== VisualAssetStatus::Approved || blank($article->selectedVisualAsset->storage_path)) {
-                $validator->errors()->add('article_id', 'Yayın için onaylı ve yerel dosyası bulunan bir kapak görseli seçilmelidir.');
             }
 
             if (! $target || $target->agency_id !== $agencyId) {

@@ -26,7 +26,6 @@ use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
-use RuntimeException;
 use Tests\TestCase;
 
 class AutomaticArticlePublisherTest extends TestCase
@@ -81,18 +80,16 @@ class AutomaticArticlePublisherTest extends TestCase
         Http::assertSent(fn (Request $request): bool => $request->url() === 'https://93.184.216.34/images/source.png');
     }
 
-    public function test_missing_source_image_is_held_without_ai_request(): void
+    public function test_missing_source_image_continues_without_ai_request(): void
     {
         Storage::fake('public');
         Http::preventStrayRequests();
         $article = Article::factory()->create();
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('AI görsel üretimi kapalıdır');
-        try {
-            app(AutomaticArticleVisualManager::class)->ensure($article);
-        } finally {
-            Http::assertNothingSent();
-        }
+
+        $visual = app(AutomaticArticleVisualManager::class)->ensure($article);
+
+        $this->assertNull($visual);
+        Http::assertNothingSent();
     }
 
     public function test_ai_image_is_generated_only_when_enabled_and_source_image_is_missing(): void
@@ -137,19 +134,17 @@ class AutomaticArticlePublisherTest extends TestCase
         Http::assertSentCount(1);
     }
 
-    public function test_failed_source_image_download_does_not_fall_back_to_ai(): void
+    public function test_failed_source_image_download_continues_without_ai_fallback(): void
     {
         Storage::fake('public');
         Http::preventStrayRequests();
         Http::fake(['https://93.184.216.34/images/missing.png' => Http::response('missing', 404)]);
         $article = Article::factory()->create();
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('AI görsel üretimi kapalıdır');
-        try {
-            app(AutomaticArticleVisualManager::class)->ensure($article, 'https://93.184.216.34/images/missing.png');
-        } finally {
-            Http::assertSentCount(1);
-        }
+
+        $visual = app(AutomaticArticleVisualManager::class)->ensure($article, 'https://93.184.216.34/images/missing.png');
+
+        $this->assertNull($visual);
+        Http::assertSentCount(1);
     }
 
     private function png(): string

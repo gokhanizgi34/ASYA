@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\ArticleStatus;
 use App\Http\Requests\StorePublicationRequest;
+use App\Http\Requests\UpdatePublicationRequest;
 use App\Jobs\PublishArticleToWordPress;
 use App\Models\Agency;
 use App\Models\Article;
@@ -14,7 +15,6 @@ use App\PublicationStatus;
 use App\RemotePublicationStatus;
 use App\Services\PublicationCreator;
 use App\SourceTrustStatus;
-use App\VisualAssetStatus;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -77,6 +77,35 @@ class PublicationController extends Controller
         );
     }
 
+    public function edit(Publication $publication): View
+    {
+        Gate::authorize('update', $publication);
+
+        return view('publications.edit', compact('publication'));
+    }
+
+    public function update(UpdatePublicationRequest $request, Publication $publication): RedirectResponse
+    {
+        $payload = $publication->payload;
+        $payload['title'] = $request->validated('title');
+        $payload['excerpt'] = $request->validated('excerpt');
+        $payload['content'] = $request->validated('content');
+        $publication->update(['payload' => $payload, 'remote_status' => $request->validated('remote_status'), 'failure_message' => null]);
+
+        return redirect()->route('publications.show', $publication)->with('success', 'Yayın kaydı güncellendi.');
+    }
+
+    public function destroy(Publication $publication): RedirectResponse
+    {
+        Gate::authorize('delete', $publication);
+        DB::transaction(function () use ($publication): void {
+            $publication->scheduleEntries()->delete();
+            $publication->delete();
+        }, 5);
+
+        return redirect()->route('publications.index')->with('success', 'Yayın kaydı silindi. Haber kaydı korunmuştur.');
+    }
+
     public function show(Publication $publication): View
     {
         Gate::authorize('view', $publication);
@@ -89,7 +118,7 @@ class PublicationController extends Controller
     {
         return [
             'agencies' => Agency::query()->where('is_active', true)->when(! $user->isSystemAdministrator(), fn ($query) => $query->whereKey($user->agency_id))->orderBy('name')->get(),
-            'articles' => Article::query()->visibleTo($user)->where('status', ArticleStatus::Published)->where('source_trust_status', SourceTrustStatus::Verified)->whereHas('seoAnalysis')->whereHas('selectedVisualAsset', fn ($query) => $query->where('status', VisualAssetStatus::Approved)->whereNotNull('storage_path'))->with('agency')->orderByDesc('created_at')->limit(200)->get(),
+            'articles' => Article::query()->visibleTo($user)->where('status', ArticleStatus::Published)->where('source_trust_status', SourceTrustStatus::Verified)->whereHas('seoAnalysis')->with('agency')->orderByDesc('created_at')->limit(200)->get(),
             'targets' => PublishingTarget::query()->visibleTo($user)->where('is_active', true)->with('agency')->orderBy('name')->get(),
             'remoteStatuses' => RemotePublicationStatus::cases(),
         ];

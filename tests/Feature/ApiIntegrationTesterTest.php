@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\IntegrationAuthType;
+use App\IntegrationProvider;
 use App\Models\ApiIntegration;
 use App\Models\LearnedRoute;
 use App\Services\ApiIntegrationTester;
@@ -65,5 +66,32 @@ class ApiIntegrationTesterTest extends TestCase
         $this->assertStringContainsString('Özel veya ayrılmış', (string) $integration->fresh()->last_error);
         Http::assertNothingSent();
         $this->assertDatabaseCount('learned_routes', 0);
+    }
+
+    public function test_pixabay_connection_sends_api_key_as_query_parameter(): void
+    {
+        $integration = ApiIntegration::factory()->create([
+            'provider' => IntegrationProvider::Pixabay,
+            'base_url' => 'https://93.184.216.34/api',
+            'auth_type' => IntegrationAuthType::None,
+            'credential' => 'pixabay-secret-key',
+            'visual_enabled' => true,
+        ]);
+        Http::preventStrayRequests();
+        Http::fake(['https://93.184.216.34/api*' => Http::response(['totalHits' => 1, 'hits' => [['id' => 123]]], 200)]);
+
+        $successful = app(ApiIntegrationTester::class)->test($integration);
+
+        $this->assertTrue($successful);
+        $this->assertSame(200, $integration->fresh()->last_status_code);
+        Http::assertSent(function (Request $request): bool {
+            parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+
+            return ($query['key'] ?? null) === 'pixabay-secret-key'
+                && ($query['q'] ?? null) === 'food'
+                && ($query['per_page'] ?? null) === '3'
+                && ! $request->hasHeader('Authorization');
+        });
+        $this->assertStringNotContainsString('pixabay-secret-key', LearnedRoute::query()->sole()->toJson());
     }
 }

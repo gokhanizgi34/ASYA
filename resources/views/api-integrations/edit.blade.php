@@ -7,7 +7,7 @@
         <form method="POST" action="{{ route('api-integrations.update', $integration) }}" class="space-y-6 rounded-2xl border border-white/10 bg-white/[.04] p-6">
             @csrf
             @method('PUT')
-            @if ($integration->provider->isAi())
+            @if ($integration->provider->usesSimpleSetup())
                 @include('api-integrations._ai-form')
             @else
                 @include('api-integrations._form')

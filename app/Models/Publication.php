@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable(['agency_id', 'article_id', 'publishing_target_id', 'created_by', 'status', 'remote_status', 'remote_post_id', 'remote_media_id', 'remote_url', 'payload', 'response_meta', 'attempt_count', 'failure_message', 'queued_at', 'started_at', 'published_at', 'completed_at'])]
 class Publication extends Model
@@ -53,6 +54,12 @@ class Publication extends Model
     public function canBeDispatched(): bool
     {
         return in_array($this->status, [PublicationStatus::Queued, PublicationStatus::Failed], true);
+    }
+
+    /** @return HasMany<ScheduleEntry, $this> */
+    public function scheduleEntries(): HasMany
+    {
+        return $this->hasMany(ScheduleEntry::class);
     }
 
     /** @return array<string, string> */

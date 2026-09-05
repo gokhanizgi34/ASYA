@@ -23,6 +23,7 @@
                         ['label' => '1. Haber Kaynağı Girişi', 'route' => 'source-trust.index', 'pattern' => 'source-trust.*', 'allowed' => auth()->user()->can('viewAny', App\Models\NewsSource::class)],
                         ['label' => '2. Ham Haber Toplama', 'route' => 'raw-news.index', 'pattern' => 'raw-news.*', 'allowed' => auth()->user()->can('viewAny', App\Models\RawNewsItem::class)],
                         ['label' => '3. AI Haber Üretimi', 'route' => 'content-batches.index', 'pattern' => 'content-batches.*', 'allowed' => auth()->user()->can('viewAny', App\Models\ContentBatch::class)],
+                        ['label' => '3A. Yazım Dili Hafızası', 'route' => 'editorial-style-profiles.index', 'pattern' => 'editorial-style-profiles.*', 'allowed' => auth()->user()->can('viewAny', App\Models\EditorialStyleProfile::class)],
                         ['label' => '4. AI Haber Görseli', 'route' => 'visual-assets.index', 'pattern' => 'visual-assets.*', 'allowed' => auth()->user()->can('viewAny', App\Models\VisualAsset::class)],
                         ['label' => '5. Yayın Merkezi', 'route' => 'publications.index', 'pattern' => 'publications.*', 'allowed' => auth()->user()->can('viewAny', App\Models\Publication::class)],
                         ['label' => '6. WordPress Hedefleri', 'route' => 'publishing-targets.index', 'pattern' => 'publishing-targets.*', 'allowed' => auth()->user()->can('viewAny', App\Models\PublishingTarget::class)],
@@ -33,6 +34,7 @@
                     'items' => [
                         ['label' => 'Günlük Burçlar', 'route' => 'horoscopes.index', 'pattern' => 'horoscopes.*', 'allowed' => auth()->user()->can('viewAny', App\Models\HoroscopeForecast::class)],
                         ['label' => 'Tarif Havuzu', 'route' => 'recipes.index', 'pattern' => 'recipes.*', 'allowed' => auth()->user()->can('viewAny', App\Models\Recipe::class)],
+                        ['label' => 'Mukaddes Abla', 'route' => 'advice-letters.index', 'pattern' => 'advice-letters.*', 'allowed' => auth()->user()->can('viewAny', App\Models\AdviceLetter::class)],
                         ['label' => 'Özel Gün Takvimi', 'route' => 'schedules.index', 'pattern' => 'schedules.*', 'allowed' => auth()->user()->can('viewAny', App\Models\ScheduleEntry::class)],
                         ['label' => 'Trend Motoru', 'route' => 'trends.index', 'pattern' => 'trends.*', 'allowed' => auth()->user()->can('viewAny', App\Models\TrendTopic::class)],
                     ],

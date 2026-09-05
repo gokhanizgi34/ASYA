@@ -29,7 +29,7 @@ class PublicationPolicy
 
     public function delete(User $user, Publication $publication): bool
     {
-        return false;
+        return $this->update($user, $publication);
     }
 
     public function restore(User $user, Publication $publication): bool

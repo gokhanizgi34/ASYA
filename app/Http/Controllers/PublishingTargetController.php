@@ -12,6 +12,7 @@ use App\PublishingProtocol;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 
@@ -39,7 +40,18 @@ class PublishingTargetController extends Controller
 
     public function store(StorePublishingTargetRequest $request): RedirectResponse
     {
-        PublishingTarget::query()->create($request->validated());
+        $data = $request->validated();
+        $deletedTarget = PublishingTarget::withTrashed()
+            ->where('agency_id', $data['agency_id'])
+            ->where('base_url', $data['base_url'])
+            ->first();
+
+        if ($deletedTarget?->trashed()) {
+            $deletedTarget->restore();
+            $deletedTarget->update($data);
+        } else {
+            PublishingTarget::query()->create($data);
+        }
 
         return redirect()->route('publishing-targets.index')->with('success', 'WordPress yayın hedefi oluşturuldu.');
     }
@@ -72,10 +84,21 @@ class PublishingTargetController extends Controller
     public function destroy(PublishingTarget $publishingTarget): RedirectResponse
     {
         Gate::authorize('delete', $publishingTarget);
-        abort_if($publishingTarget->publications()->whereIn('status', [PublicationStatus::Queued, PublicationStatus::Publishing])->exists(), 422, 'Kuyrukta yayını bulunan hedef silinemez.');
-        $publishingTarget->delete();
 
-        return redirect()->route('publishing-targets.index')->with('success', 'Yayın hedefi geri alınabilir şekilde silindi.');
+        if ($publishingTarget->publications()->where('status', PublicationStatus::Publishing)->exists()) {
+            return redirect()->route('publishing-targets.index')->with('error', 'Hedef şu anda yayın yaptığı için silinemedi. İşlem tamamlandıktan sonra tekrar deneyin.');
+        }
+
+        DB::transaction(function () use ($publishingTarget): void {
+            $publishingTarget->publications()->where('status', PublicationStatus::Queued)->update([
+                'status' => PublicationStatus::Failed,
+                'failure_message' => 'Yayın hedefi silindiği için kuyruktan çıkarıldı.',
+                'completed_at' => now(),
+            ]);
+            $publishingTarget->delete();
+        }, 3);
+
+        return redirect()->route('publishing-targets.index')->with('success', 'Yayın hedefi silindi; bekleyen yayınlar kuyruktan çıkarıldı.');
     }
 
     /** @return array{agencies: Collection<int, Agency>, protocols: array<int, PublishingProtocol>} */

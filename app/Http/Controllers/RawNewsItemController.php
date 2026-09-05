@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreRawNewsItemRequest;
+use App\Http\Requests\UpdateRawNewsItemRequest;
 use App\Models\Agency;
 use App\Models\RawNewsItem;
 use App\Models\User;
@@ -103,6 +104,20 @@ class RawNewsItemController extends Controller
         Gate::authorize('view', $rawNewsItem);
 
         return view('raw-news.show', ['item' => $rawNewsItem->load('agency')]);
+    }
+
+    public function edit(RawNewsItem $rawNewsItem): View
+    {
+        Gate::authorize('update', $rawNewsItem);
+
+        return view('raw-news.edit', ['item' => $rawNewsItem]);
+    }
+
+    public function update(UpdateRawNewsItemRequest $request, RawNewsItem $rawNewsItem): RedirectResponse
+    {
+        $rawNewsItem->update([...$request->validated(), 'status' => RawNewsStatus::Pending, 'failure_message' => null, 'processed_at' => null]);
+
+        return redirect()->route('raw-news.show', $rawNewsItem)->with('success', 'Ham haber güncellendi ve yeniden işlenmeye hazırlandı.');
     }
 
     public function destroy(RawNewsItem $rawNewsItem): RedirectResponse

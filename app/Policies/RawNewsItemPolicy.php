@@ -25,7 +25,7 @@ class RawNewsItemPolicy
 
     public function update(User $user, RawNewsItem $rawNewsItem): bool
     {
-        return false;
+        return $this->view($user, $rawNewsItem);
     }
 
     public function delete(User $user, RawNewsItem $rawNewsItem): bool

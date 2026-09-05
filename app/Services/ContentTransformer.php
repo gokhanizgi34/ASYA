@@ -11,6 +11,7 @@ class ContentTransformer
     public function __construct(
         private readonly AiNewsWriter $aiNewsWriter,
         private readonly NewsContentQualityGate $qualityGate,
+        private readonly LocalEditorialRewriter $localRewriter,
     ) {}
 
     /**
@@ -30,6 +31,11 @@ class ContentTransformer
         }
 
         $this->qualityGate->assertRawNews($rawNewsItem);
+
+        $localContent = $this->localRewriter->rewrite($rawNewsItem);
+        if ($localContent !== null) {
+            return $localContent;
+        }
 
         if ($this->aiNewsWriter->hasActiveIntegration($rawNewsItem->agency_id)) {
             return $this->aiNewsWriter->write($rawNewsItem, $promptSnapshot);

@@ -3,8 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\Agency;
+use App\Models\Article;
+use App\Models\Publication;
 use App\Models\PublishingTarget;
 use App\Models\User;
+use App\PublicationStatus;
 use App\PublishingProtocol;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -73,6 +76,50 @@ class PublishingTargetControllerTest extends TestCase
         ]))->assertSessionHasErrors('base_url');
 
         $this->assertDatabaseCount('publishing_targets', 1);
+    }
+
+    public function test_target_with_queued_publication_is_deleted_after_queue_is_closed(): void
+    {
+        $agency = Agency::factory()->create();
+        $owner = User::factory()->agencyOwner()->for($agency)->create();
+        $target = PublishingTarget::factory()->for($agency)->create();
+        $publication = Publication::factory()->for($agency)->for(Article::factory()->for($agency), 'article')->for($target, 'publishingTarget')->create(['status' => PublicationStatus::Queued]);
+
+        $this->actingAs($owner)->delete(route('publishing-targets.destroy', $target))->assertRedirect(route('publishing-targets.index'));
+
+        $this->assertSoftDeleted('publishing_targets', ['id' => $target->id]);
+        $this->assertSame(PublicationStatus::Failed, $publication->fresh()->status);
+    }
+
+    public function test_deleted_site_target_can_be_registered_again_for_the_same_agency(): void
+    {
+        $agency = Agency::factory()->create();
+        $owner = User::factory()->agencyOwner()->for($agency)->create();
+        $target = PublishingTarget::factory()->for($agency)->create(['base_url' => 'https://www.ilcehaber.com']);
+        $target->delete();
+
+        $this->actingAs($owner)->post(route('publishing-targets.store'), $this->payload($agency->id, [
+            'name' => 'İlçe Haber',
+            'base_url' => 'https://www.ilcehaber.com/',
+        ]))->assertRedirect(route('publishing-targets.index'));
+
+        $this->assertFalse($target->fresh()->trashed());
+        $this->assertSame('İlçe Haber', $target->fresh()->name);
+    }
+
+    public function test_deleted_site_target_with_the_same_name_can_be_registered_again(): void
+    {
+        $agency = Agency::factory()->create();
+        $owner = User::factory()->agencyOwner()->for($agency)->create();
+        $target = PublishingTarget::factory()->for($agency)->create(['name' => 'haber', 'base_url' => 'https://www.ilcehaber.com']);
+        $target->delete();
+
+        $this->actingAs($owner)->post(route('publishing-targets.store'), $this->payload($agency->id, [
+            'name' => 'haber',
+            'base_url' => 'https://www.ilcehaber.com/',
+        ]))->assertRedirect(route('publishing-targets.index'));
+
+        $this->assertFalse($target->fresh()->trashed());
     }
 
     /** @param array<string, mixed> $overrides */

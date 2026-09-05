@@ -26,7 +26,7 @@ class AutomaticArticleVisualManager
         private readonly SystemSettings $settings,
     ) {}
 
-    public function ensure(Article $article, ?string $sourceImageUrl = null): VisualAsset
+    public function ensure(Article $article, ?string $sourceImageUrl = null): ?VisualAsset
     {
         $selected = $article->selectedVisualAsset()->where('status', VisualAssetStatus::Approved)->first();
 
@@ -44,15 +44,24 @@ class AutomaticArticleVisualManager
                     'message' => $exception->getMessage(),
                 ]);
 
-                if (! $this->settings->get('visual.ai_generation_enabled', $article->agency_id)) {
-                    throw new RuntimeException('Kaynak haber görseli indirilemedi; AI görsel üretimi kapalıdır.', previous: $exception);
-                }
             }
         }
 
+        try {
+            $pixabayVisual = $this->importPixabayImage($article);
+
+            if ($pixabayVisual) {
+                return $pixabayVisual;
+            }
+        } catch (Throwable $exception) {
+            Log::warning('Pixabay görseli alınamadı; sonraki görsel yöntemi deneniyor.', [
+                'article_id' => $article->id,
+                'message' => $exception->getMessage(),
+            ]);
+        }
+
         if (! $this->settings->get('visual.ai_generation_enabled', $article->agency_id)) {
-            return $this->importAgencyLogo($article)
-                ?? throw new RuntimeException('Kaynak haberde görsel bulunamadı; AI görsel üretimi kapalıdır ve ajans logosu tanımlı değildir.');
+            return $this->importAgencyLogo($article);
         }
 
         try {
@@ -63,8 +72,7 @@ class AutomaticArticleVisualManager
                 'message' => $exception->getMessage(),
             ]);
 
-            return $this->importAgencyLogo($article)
-                ?? throw $exception;
+            return $this->importAgencyLogo($article);
         }
     }
 
@@ -113,6 +121,88 @@ class AutomaticArticleVisualManager
             sourceUrl: $sourceImageUrl,
             generationPrompt: null,
         );
+    }
+
+    private function importPixabayImage(Article $article): ?VisualAsset
+    {
+        $integration = ApiIntegration::query()
+            ->where('agency_id', $article->agency_id)
+            ->where('provider', IntegrationProvider::Pixabay)
+            ->where('is_active', true)
+            ->where('visual_enabled', true)
+            ->orderByDesc('is_default')
+            ->orderBy('priority')
+            ->first();
+
+        if (! $integration || blank($integration->credential)) {
+            return null;
+        }
+
+        $this->urlGuard->assertSafe($integration->base_url);
+        $response = Http::acceptJson()
+            ->withUserAgent('ASYA-News-Automation/1.0')
+            ->connectTimeout(10)
+            ->timeout(max(15, $integration->timeout_seconds))
+            ->get($integration->base_url, [
+                'key' => (string) $integration->credential,
+                'q' => $this->pixabayQuery($article),
+                'lang' => 'tr',
+                'image_type' => 'photo',
+                'orientation' => 'horizontal',
+                'safesearch' => 'true',
+                'order' => 'popular',
+                'per_page' => 20,
+            ]);
+        $response->throw();
+
+        $hit = collect($response->json('hits', []))
+            ->filter(fn (mixed $candidate): bool => is_array($candidate) && filled(data_get($candidate, 'largeImageURL', data_get($candidate, 'webformatURL'))))
+            ->sortByDesc(fn (array $candidate): int => (int) data_get($candidate, 'imageWidth', 0))
+            ->first();
+
+        if (! is_array($hit)) {
+            return null;
+        }
+
+        $imageUrl = (string) data_get($hit, 'largeImageURL', data_get($hit, 'webformatURL'));
+        $this->urlGuard->assertSafe($imageUrl);
+        $imageResponse = Http::accept('image/*')
+            ->withUserAgent('ASYA-News-Automation/1.0')
+            ->connectTimeout(10)
+            ->timeout(30)
+            ->get($imageUrl);
+        $imageResponse->throw();
+
+        return $this->storeImage(
+            article: $article,
+            bytes: $imageResponse->body(),
+            sourceType: VisualSourceType::Archive,
+            copyrightStatus: CopyrightStatus::Licensed,
+            sourceUrl: (string) data_get($hit, 'pageURL', $imageUrl),
+            generationPrompt: 'Pixabay araması: '.$this->pixabayQuery($article),
+        );
+    }
+
+    private function pixabayQuery(Article $article): string
+    {
+        $contentType = (string) data_get($article->editorial_metadata, 'content_type', '');
+        $category = (string) data_get($article->editorial_metadata, 'category', '');
+        $fallback = match ($contentType) {
+            'horoscope' => 'burç astroloji gökyüzü',
+            'special_day' => 'özel gün kutlama Türkiye',
+            'recipe' => 'Türk mutfağı yemek',
+            'column' => 'gazete köşe yazısı gündem',
+            'campaign' => 'kampanya tanıtım etkinlik',
+            default => $category,
+        };
+        $query = Str::of($article->title.' '.$fallback)
+            ->stripTags()
+            ->replaceMatches('/[^\\pL\\pN\\s-]+/u', ' ')
+            ->squish()
+            ->limit(100, '')
+            ->toString();
+
+        return $query !== '' ? $query : 'Türkiye haber';
     }
 
     private function generateImage(Article $article): VisualAsset

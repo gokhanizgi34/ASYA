@@ -116,7 +116,7 @@ class SystemSettings
                     ],
                 );
             }
-        });
+        }, 5);
 
         $this->memoized = [];
     }

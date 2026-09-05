@@ -10,6 +10,7 @@ $sections = [
 ['AI Yazarlar','Yapay zekâ destekli köşe yazarı profilleri ve yazı taslakları oluşturur.','Yazar kişiliğini tanımlayın; konu verip taslak üretin ve editör kontrolünden geçirin.'],
 ['Promptlar','Yapay zekâ talimatlarını merkezi ve tekrar kullanılabilir biçimde saklar.','Prompt ekleyin, simülasyonda sınayın ve ilgili iş akışında kullanın.'],
 ['AI Haber Üretimi','Çok sayıda içeriği toplu görevler halinde üretir.','İçerik grubunu ve adetleri belirleyin; görevi kuyruğa gönderip sonucu izleyin.'],
+['Yazım Dili Hafızası','Ajansın kelime tercihlerini öğrenerek metinleri mümkün olduğunda AI tokenı harcamadan özgünleştirir.','Örnek metinleri ve kelime dönüşümlerini kaydedin; günlük kotayı ve başarılı içeriğin yayın mı taslak mı olacağını seçin.'],
 ['AI Haber Görseli','Haber görsellerini üretir, değerlendirir ve kapak görseli seçer.','İstek oluşturun, adayları değerlendirin ve kapak olarak birini seçin.'],
 ['Yayın Merkezi','Hazır içerikleri hedef sitelere gönderir ve gönderim sonucunu takip eder.','İçeriği ve hedefi seçin; yayını başlatıp durum kaydını inceleyin.'],
 ['Yayın Hedefleri','WordPress veya diğer yayın noktalarının bağlantılarını tanımlar.','Hedef adresini ve erişim bilgisini girip etkinleştirin.'],

@@ -9,9 +9,11 @@ use App\Models\AiColumnist;
 use App\Models\ColumnistDraft;
 use App\Models\User;
 use App\Services\ColumnistDraftComposer;
+use App\Services\GeneratedContentPublicationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class ColumnistDraftController extends Controller
@@ -19,21 +21,21 @@ class ColumnistDraftController extends Controller
     public function create(Request $request): View
     {
         Gate::authorize('create', ColumnistDraft::class);
-        $u = $request->user();
-        abort_unless($u instanceof User, 401);
+        $user = $request->user();
+        abort_unless($user instanceof User, 401);
 
-        return view('ai-columnists.draft-create', ['columnists' => AiColumnist::query()->visibleTo($u)->where('is_active', true)->get()]);
+        return view('ai-columnists.draft-create', ['columnists' => AiColumnist::query()->visibleTo($user)->where('is_active', true)->get()]);
     }
 
     public function store(StoreColumnistDraftRequest $request, ColumnistDraftComposer $composer): RedirectResponse
     {
-        $u = $request->user();
-        abort_unless($u instanceof User, 401);
-        $c = AiColumnist::findOrFail($request->integer('ai_columnist_id'));
-        $composed = $composer->compose($c, $request->validated('topic'), $request->validated('source_notes'));
-        $d = ColumnistDraft::create(['agency_id' => $c->agency_id, 'ai_columnist_id' => $c->id, 'created_by' => $u->id, 'topic' => $request->validated('topic'), 'source_notes' => $request->validated('source_notes'), ...$composed, 'status' => ColumnistDraftStatus::Draft]);
+        $user = $request->user();
+        abort_unless($user instanceof User, 401);
+        $columnist = AiColumnist::query()->findOrFail($request->integer('ai_columnist_id'));
+        $composed = $composer->compose($columnist, $request->validated('topic'), $request->validated('source_notes'));
+        $draft = ColumnistDraft::query()->create(['agency_id' => $columnist->agency_id, 'ai_columnist_id' => $columnist->id, 'created_by' => $user->id, 'topic' => $request->validated('topic'), 'source_notes' => $request->validated('source_notes'), ...$composed, 'status' => ColumnistDraftStatus::Draft]);
 
-        return redirect()->route('columnist-drafts.show', $d)->with('success', 'Yerel köşe taslağı oluşturuldu; editoryal inceleme zorunludur.');
+        return redirect()->route('columnist-drafts.show', $draft)->with('success', 'Köşe yazısı taslağı oluşturuldu; onaylandığında Yayın Merkezi’ne gönderilecek.');
     }
 
     public function show(ColumnistDraft $columnistDraft): View
@@ -43,12 +45,21 @@ class ColumnistDraftController extends Controller
         return view('ai-columnists.draft-show', ['draft' => $columnistDraft->load(['columnist', 'creator', 'reviewer']), 'statuses' => ColumnistDraftStatus::cases()]);
     }
 
-    public function update(UpdateColumnistDraftRequest $request, ColumnistDraft $columnistDraft): RedirectResponse
+    public function update(UpdateColumnistDraftRequest $request, ColumnistDraft $columnistDraft, GeneratedContentPublicationService $publisher): RedirectResponse
     {
-        $s = ColumnistDraftStatus::from($request->validated('status'));
-        $reviewed = in_array($s, [ColumnistDraftStatus::Approved, ColumnistDraftStatus::Rejected], true);
+        $status = ColumnistDraftStatus::from($request->validated('status'));
+        $reviewed = in_array($status, [ColumnistDraftStatus::Approved, ColumnistDraftStatus::Rejected], true);
         $columnistDraft->update([...$request->validated(), 'reviewed_by' => $reviewed ? $request->user()?->id : null, 'reviewed_at' => $reviewed ? now() : null]);
 
-        return back()->with('success','Köşe taslağı güncellendi.');
+        if ($status === ColumnistDraftStatus::Approved && $request->user() instanceof User) {
+            $publisher->send($columnistDraft->agency_id, $request->user(), [
+                'title' => $columnistDraft->headline, 'summary' => Str::limit(strip_tags($columnistDraft->body), 155, ''),
+                'body' => $columnistDraft->body, 'keywords' => [$columnistDraft->topic, $columnistDraft->columnist?->pen_name],
+                'hashtags' => ['#KöşeYazısı'], 'category' => 'Köşe Yazıları', 'source_type' => 'columnist',
+                'source_id' => $columnistDraft->id, 'slug' => Str::slug($columnistDraft->headline).'-kose-'.$columnistDraft->id, 'destination' => 'publish',
+            ]);
+        }
+
+        return back()->with('success', $status === ColumnistDraftStatus::Approved ? 'Köşe yazısı onaylandı ve Yayın Merkezi’ne gönderildi.' : 'Köşe taslağı güncellendi.');
     }
 }

@@ -21,8 +21,8 @@ class StorePublishingTargetRequest extends FormRequest
     {
         return [
             'agency_id' => ['required', 'integer', Rule::exists('agencies', 'id')->where('is_active', true)],
-            'name' => ['required', 'string', 'max:150', Rule::unique('publishing_targets', 'name')->where(fn ($query) => $query->where('agency_id', $this->input('agency_id')))->ignore($this->targetForUniqueRule())],
-            'base_url' => ['required', 'url:http,https', 'max:500', Rule::unique('publishing_targets', 'base_url')->ignore($this->targetForUniqueRule())],
+            'name' => ['required', 'string', 'max:150', Rule::unique('publishing_targets', 'name')->where(fn ($query) => $query->where('agency_id', $this->input('agency_id')))->withoutTrashed()->ignore($this->targetForUniqueRule())],
+            'base_url' => ['required', 'url:http,https', 'max:500', Rule::unique('publishing_targets', 'base_url')->withoutTrashed()->ignore($this->targetForUniqueRule())],
             'protocol' => ['required', Rule::enum(PublishingProtocol::class)],
             'username' => ['required', 'string', 'max:150'],
             'credential' => [$this->targetForUniqueRule() ? 'nullable' : 'required', 'string', 'min:8', 'max:2000'],

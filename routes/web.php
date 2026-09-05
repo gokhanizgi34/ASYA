@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AdviceLetterController;
 use App\Http\Controllers\AgencyController;
 use App\Http\Controllers\AgencyMailSettingController;
 use App\Http\Controllers\AgencyMailTestController;
@@ -14,6 +15,7 @@ use App\Http\Controllers\ApiIntegrationController;
 use App\Http\Controllers\ApiIntegrationTestController;
 use App\Http\Controllers\ArticleBulkActionController;
 use App\Http\Controllers\ArticleController;
+use App\Http\Controllers\ArticleRetryController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\AuthorizationMatrixController;
 use App\Http\Controllers\BlacklistRuleController;
@@ -29,6 +31,7 @@ use App\Http\Controllers\DatabaseBackupController;
 use App\Http\Controllers\DatabaseBackupDownloadController;
 use App\Http\Controllers\DatabaseBackupVerifyController;
 use App\Http\Controllers\EditorialCalendarGenerationController;
+use App\Http\Controllers\EditorialStyleProfileController;
 use App\Http\Controllers\ErrorLogController;
 use App\Http\Controllers\ErrorLogStatusController;
 use App\Http\Controllers\FailedPublicationBulkDispatchController;
@@ -95,10 +98,10 @@ Route::middleware(['auth', EnsureUserIsActive::class, ApplySystemSettings::class
     Route::patch('/ham-haber-havuzu/toplu-islem', RawNewsBulkActionController::class)->name('raw-news.bulk-action');
     Route::resource('ham-haber-havuzu', RawNewsItemController::class)
         ->parameters(['ham-haber-havuzu' => 'rawNewsItem'])
-        ->except(['edit', 'update'])
         ->names('raw-news');
 
     Route::patch('/haberler/toplu-islem', ArticleBulkActionController::class)->name('articles.bulk-action');
+    Route::post('/haberler/{article}/yeniden-dene', ArticleRetryController::class)->name('articles.retry');
     Route::get('/haberler/{article}/seo', [SeoAnalysisController::class, 'show'])->name('seo.show');
     Route::post('/haberler/{article}/seo', [SeoAnalysisController::class, 'analyze'])->name('seo.analyze');
 
@@ -112,11 +115,14 @@ Route::middleware(['auth', EnsureUserIsActive::class, ApplySystemSettings::class
         ->parameters(['tarifler' => 'recipe'])
         ->names('recipes');
 
+    Route::resource('mukaddes-abla', AdviceLetterController::class)
+        ->parameters(['mukaddes-abla' => 'adviceLetter'])
+        ->names('advice-letters');
+
     Route::post('/burclar/gun-hazirla', HoroscopeDayController::class)->name('horoscopes.day');
     Route::get('/burclar', [HoroscopeForecastController::class, 'index'])->name('horoscopes.index');
     Route::get('/burclar/{horoscopeForecast}/duzenle', [HoroscopeForecastController::class, 'edit'])->name('horoscopes.edit');
     Route::put('/burclar/{horoscopeForecast}', [HoroscopeForecastController::class, 'update'])->name('horoscopes.update');
-
 
     Route::get('/ai-kose-yazarlari/taslaklar/yeni', [ColumnistDraftController::class, 'create'])->name('columnist-drafts.create');
     Route::post('/ai-kose-yazarlari/taslaklar', [ColumnistDraftController::class, 'store'])->name('columnist-drafts.store');
@@ -144,7 +150,7 @@ Route::middleware(['auth', EnsureUserIsActive::class, ApplySystemSettings::class
     Route::post('/icerik-fabrikasi/{contentBatch}/kuyruga-gonder', ContentBatchDispatchController::class)->name('content-batches.dispatch');
     Route::resource('icerik-fabrikasi', ContentBatchController::class)
         ->parameters(['icerik-fabrikasi' => 'contentBatch'])
-        ->only(['index', 'create', 'store', 'show'])
+        ->only(['index', 'create', 'store', 'show', 'edit', 'update', 'destroy'])
         ->names('content-batches');
 
     Route::get('/yayin-merkezi/coklu-dagitim', [MultiSiteDistributionController::class, 'create'])->name('publications.multi-site');
@@ -153,7 +159,7 @@ Route::middleware(['auth', EnsureUserIsActive::class, ApplySystemSettings::class
     Route::post('/yayin-merkezi/{publication}/yeniden-gonder', PublicationDispatchController::class)->name('publications.dispatch');
     Route::resource('yayin-merkezi', PublicationController::class)
         ->parameters(['yayin-merkezi' => 'publication'])
-        ->only(['index', 'create', 'store', 'show'])
+        ->only(['index', 'create', 'store', 'show', 'edit', 'update', 'destroy'])
         ->names('publications');
     Route::resource('yayin-hedefleri', PublishingTargetController::class)
         ->parameters(['yayin-hedefleri' => 'publishingTarget'])
@@ -178,6 +184,8 @@ Route::middleware(['auth', EnsureUserIsActive::class, ApplySystemSettings::class
         ->parameters(['entegrasyonlar' => 'apiIntegration'])
         ->except('show')
         ->names('api-integrations');
+    Route::get('/yazim-dili-hafizasi', [EditorialStyleProfileController::class, 'index'])->name('editorial-style-profiles.index');
+    Route::put('/yazim-dili-hafizasi', [EditorialStyleProfileController::class, 'update'])->name('editorial-style-profiles.update');
     Route::get('/rota-ogrenici', LearnedRouteController::class)->name('learned-routes.index');
     Route::patch('/rota-ogrenici/{learnedRoute}/durum', LearnedRouteStatusController::class)->name('learned-routes.status');
     Route::get('/yetki-matrisi', AuthorizationMatrixController::class)->name('authorization-matrix');

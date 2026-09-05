@@ -12,6 +12,7 @@ use App\Models\Recipe;
 use App\Models\SeoAnalysis;
 use App\Models\User;
 use App\Models\VisualAsset;
+use App\Services\GeneratedContentPublicationService;
 use App\Services\RecipeAiGenerator;
 use App\SourceTrustStatus;
 use App\VisualAssetStatus;
@@ -50,7 +51,7 @@ class RecipeController extends Controller
         return redirect()->route('recipes.index')->with('success', 'Tarif havuzuna eklendi.');
     }
 
-    public function generate(Request $request, RecipeAiGenerator $generator): RedirectResponse
+    public function generate(Request $request, RecipeAiGenerator $generator, GeneratedContentPublicationService $publisher): RedirectResponse
     {
         Gate::authorize('create', Recipe::class);
         $user = $request->user();
@@ -64,7 +65,18 @@ class RecipeController extends Controller
             return back()->withErrors(['recipe_generation' => $exception->getMessage()]);
         }
 
-        return back()->with('success', count($recipes).' tarif AI ile oluşturuldu.');
+        foreach ($recipes as $recipe) {
+            $publisher->send($agency->id, $user, [
+                'title' => $recipe->title.' Tarifi: Malzemeler ve Yapılışı',
+                'summary' => $recipe->title.' tarifi için gerekli malzemeler, ölçüler ve adım adım hazırlanışı.',
+                'body' => "## Malzemeler\n\n{$recipe->ingredients}\n\n## Yapılışı\n\n{$recipe->instructions}",
+                'keywords' => [$recipe->title.' tarifi', 'pratik yemek tarifleri', 'malzemeler ve yapılışı'],
+                'hashtags' => ['#YemekTarifi', '#PratikTarif'], 'category' => 'Yemek Tarifleri',
+                'source_type' => 'recipe', 'source_id' => $recipe->id, 'slug' => Str::slug($recipe->title).'-tarif-'.$recipe->id, 'destination' => 'publish',
+            ]);
+        }
+
+        return back()->with('success', count($recipes).' tarif üretildi ve Yayın Merkezi’ne gönderildi.');
     }
 
     public function show(Recipe $recipe): View

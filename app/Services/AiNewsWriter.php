@@ -17,6 +17,7 @@ class AiNewsWriter
         private readonly AiIntegrationRegistry $registry,
         private readonly ExternalUrlGuard $urlGuard,
         private readonly NewsContentQualityGate $qualityGate,
+        private readonly SystemSettings $settings,
     ) {}
 
     public function hasActiveIntegration(int $agencyId): bool
@@ -82,6 +83,7 @@ class AiNewsWriter
             ->post($url, [
                 'model' => $integration->model,
                 'response_format' => ['type' => 'json_object'],
+                'max_tokens' => $this->maxOutputTokens($rawNewsItem->agency_id),
                 'messages' => [
                     ['role' => 'system', 'content' => $this->systemPrompt($promptSnapshot)],
                     ['role' => 'user', 'content' => $this->userPrompt($rawNewsItem, $promptSnapshot)],
@@ -103,7 +105,7 @@ class AiNewsWriter
             ->withHeader('anthropic-version', '2023-06-01')
             ->post($url, [
                 'model' => $integration->model,
-                'max_tokens' => 6000,
+                'max_tokens' => $this->maxOutputTokens($rawNewsItem->agency_id),
                 'system' => $this->systemPrompt($promptSnapshot),
                 'messages' => [['role' => 'user', 'content' => $this->userPrompt($rawNewsItem, $promptSnapshot)]],
             ]);
@@ -122,7 +124,7 @@ class AiNewsWriter
         $response = $this->baseRequest($integration)
             ->withQueryParameters(['key' => (string) $integration->credential])
             ->post($url, [
-                'generationConfig' => ['responseMimeType' => 'application/json'],
+                'generationConfig' => ['responseMimeType' => 'application/json', 'maxOutputTokens' => $this->maxOutputTokens($rawNewsItem->agency_id)],
                 'systemInstruction' => ['parts' => [['text' => $this->systemPrompt($promptSnapshot)]]],
                 'contents' => [['role' => 'user', 'parts' => [['text' => $this->userPrompt($rawNewsItem, $promptSnapshot)]]]],
             ]);
@@ -173,7 +175,7 @@ PROMPT);
         $body = Str::of(html_entity_decode(strip_tags($rawNewsItem->original_body), ENT_QUOTES | ENT_HTML5, 'UTF-8'))
             ->replaceMatches('/\s+/u', ' ')
             ->trim()
-            ->limit(30000, '')
+            ->limit((int) $this->settings->get('ai.max_input_characters', $rawNewsItem->agency_id), '')
             ->toString();
         $sourceWordCount = count(preg_split('/\s+/u', $body) ?: []);
         $supportedLength = max(180, min(800, $sourceWordCount * 2));
@@ -287,6 +289,11 @@ PROMPT;
         }
 
         return $decoded;
+    }
+
+    private function maxOutputTokens(int $agencyId): int
+    {
+        return (int) $this->settings->get('ai.max_output_tokens', $agencyId);
     }
 
     private function contentText(mixed $content): string

@@ -178,6 +178,38 @@ class ApiIntegrationControllerTest extends TestCase
         $this->assertSoftDeleted('api_integrations', ['id' => $integration->id]);
     }
 
+    public function test_owner_can_add_pixabay_with_only_api_key(): void
+    {
+        $agency = Agency::factory()->create();
+        $owner = User::factory()->agencyOwner()->for($agency)->create();
+
+        $this->actingAs($owner)->get(route('api-integrations.create', ['provider' => IntegrationProvider::Pixabay->value]))
+            ->assertOk()
+            ->assertSee('Pixabay Görsel API')
+            ->assertSee('name="credential"', false)
+            ->assertDontSee('name="base_url"', false)
+            ->assertDontSee('name="model"', false);
+
+        $this->actingAs($owner)->post(route('api-integrations.store'), [
+            'provider' => IntegrationProvider::Pixabay->value,
+        ])->assertSessionHasErrors(['credential' => 'API anahtarı zorunludur.']);
+
+        $this->actingAs($owner)->post(route('api-integrations.store'), [
+            'provider' => IntegrationProvider::Pixabay->value,
+            'credential' => 'pixabay-secret-key',
+        ])->assertRedirect(route('api-integrations.index'));
+
+        $integration = ApiIntegration::query()->sole();
+        $this->assertSame(IntegrationProvider::Pixabay, $integration->provider);
+        $this->assertSame('Pixabay Görsel API', $integration->name);
+        $this->assertSame('https://pixabay.com/api', $integration->base_url);
+        $this->assertSame(IntegrationAuthType::None, $integration->auth_type);
+        $this->assertNull($integration->model);
+        $this->assertTrue($integration->visual_enabled);
+        $this->assertSame('pixabay-secret-key', $integration->credential);
+        $this->assertNotSame('pixabay-secret-key', DB::table('api_integrations')->value('credential'));
+    }
+
     /** @param array<string, mixed> $overrides */
     private function validPayload(array $overrides = []): array
     {

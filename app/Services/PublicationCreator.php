@@ -12,7 +12,6 @@ use App\PublicationStatus;
 use App\ScheduleAction;
 use App\ScheduleStatus;
 use App\SourceTrustStatus;
-use App\VisualAssetStatus;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -36,10 +35,7 @@ class PublicationCreator
 
         if ($article->status !== ArticleStatus::Published
             || $article->source_trust_status !== SourceTrustStatus::Verified
-            || ! $article->seoAnalysis
-            || ! $article->selectedVisualAsset
-            || $article->selectedVisualAsset->status !== VisualAssetStatus::Approved
-            || blank($article->selectedVisualAsset->storage_path)) {
+            || ! $article->seoAnalysis) {
             throw ValidationException::withMessages(['article_id' => 'Haber artık yayın önkoşullarını karşılamıyor.']);
         }
 
@@ -90,12 +86,12 @@ class PublicationCreator
                     'asya_taxonomy_matches' => $taxonomy['matched_terms'],
                     'asya_district_category' => $districtCategory,
                 ],
-                'media' => [
+                'media' => $article->selectedVisualAsset ? [
                     'disk' => $article->selectedVisualAsset->storage_disk,
                     'path' => $article->selectedVisualAsset->storage_path,
                     'title' => $article->selectedVisualAsset->title,
                     'alt_text' => $article->selectedVisualAsset->alt_text,
-                ],
+                ] : null,
             ],
             'queued_at' => now(),
         ]);

@@ -40,7 +40,7 @@ class ContentBatchPolicyTest extends TestCase
         $this->assertTrue($policy->update($owner, $ownBatch));
         $this->assertTrue($policy->update($editor, $ownBatch));
         $this->assertFalse($policy->update($owner, $completedBatch));
-        $this->assertFalse($policy->delete($administrator, $ownBatch));
+        $this->assertTrue($policy->delete($administrator, $ownBatch));
         $this->assertFalse($policy->restore($administrator, $ownBatch));
         $this->assertFalse($policy->forceDelete($administrator, $ownBatch));
     }

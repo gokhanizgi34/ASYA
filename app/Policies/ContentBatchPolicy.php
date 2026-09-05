@@ -29,7 +29,7 @@ class ContentBatchPolicy
 
     public function delete(User $user, ContentBatch $contentBatch): bool
     {
-        return false;
+        return $this->view($user, $contentBatch) && ($user->isSystemAdministrator() || $user->isAgencyOwner());
     }
 
     public function restore(User $user, ContentBatch $contentBatch): bool

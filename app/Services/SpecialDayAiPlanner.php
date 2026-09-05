@@ -12,7 +12,11 @@ use Throwable;
 
 class SpecialDayAiPlanner
 {
-    public function __construct(private readonly AiIntegrationRegistry $registry, private readonly ExternalUrlGuard $urlGuard) {}
+    public function __construct(
+        private readonly AiIntegrationRegistry $registry,
+        private readonly ExternalUrlGuard $urlGuard,
+        private readonly SystemSettings $settings,
+    ) {}
 
     /** @return array<int, array{event_date: string, content_due_at: string, title: string, seo_topics: array<int, string>, ai_provider: string}> */
     public function plan(int $agencyId, int $startYear, int $years): array
@@ -47,7 +51,7 @@ class SpecialDayAiPlanner
             $this->urlGuard->assertSafe($url);
             $response = Http::acceptJson()->asJson()->withQueryParameters(['key' => (string) $integration->credential])
                 ->connectTimeout(10)->timeout(max(90, $integration->timeout_seconds))
-                ->post($url, ['generationConfig' => ['responseMimeType' => 'application/json'], 'contents' => [['role' => 'user', 'parts' => [['text' => $prompt]]]]])->throw();
+                ->post($url, ['generationConfig' => ['responseMimeType' => 'application/json', 'maxOutputTokens' => (int) $this->settings->get('ai.max_output_tokens', $integration->agency_id)], 'contents' => [['role' => 'user', 'parts' => [['text' => $prompt]]]]])->throw();
 
             return (string) data_get($response->json(), 'candidates.0.content.parts.0.text', '');
         }
@@ -57,7 +61,7 @@ class SpecialDayAiPlanner
             $this->urlGuard->assertSafe($url);
             $response = Http::acceptJson()->asJson()->withToken((string) $integration->credential)
                 ->connectTimeout(10)->timeout(max(90, $integration->timeout_seconds))
-                ->post($url, ['model' => $integration->model, 'response_format' => ['type' => 'json_object'], 'messages' => [['role' => 'user', 'content' => $prompt]]])->throw();
+                ->post($url, ['model' => $integration->model, 'response_format' => ['type' => 'json_object'], 'max_tokens' => (int) $this->settings->get('ai.max_output_tokens', $integration->agency_id), 'messages' => [['role' => 'user', 'content' => $prompt]]])->throw();
 
             return (string) data_get($response->json(), 'choices.0.message.content', '');
         }

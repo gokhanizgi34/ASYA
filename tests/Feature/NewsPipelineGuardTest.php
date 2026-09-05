@@ -37,7 +37,7 @@ class NewsPipelineGuardTest extends TestCase
     public function test_import_removes_source_branding_before_duplicate_check(): void
     {
         Http::fake([
-            'https://93.184.216.34/feed.xml' => Http::response('<rss><channel><item><title>Fenerbahçe ayrılığı resmen açıkladı - Fanatik Gazetesi Fenerbahçe Haberleri Spor</title><description>'.htmlspecialchars($this->sourceBody()).'</description><link>https://93.184.216.34/haber/1</link><pubDate>'.now()->toRfc2822String().'</pubDate></item></channel></rss>', 200, ['Content-Type' => 'application/rss+xml']),
+            'https://93.184.216.34/feed.xml' => Http::response('<rss><channel><item><title>Fenerbahçe ayrılığı resmen açıkladı - Fanatik Gazetesi Fenerbahçe Haberleri Spor</title><description>'.htmlspecialchars(implode(' ', array_fill(0, 8, 'Kulüp yönetimi transfer sürecine ilişkin güncel kararı açıkladı. Ayrılık görüşmeleri tamamlandı ve resmi işlemler başladı.'))).'</description><link>https://93.184.216.34/haber/1</link><pubDate>'.now()->toRfc2822String().'</pubDate></item></channel></rss>', 200, ['Content-Type' => 'application/rss+xml']),
         ]);
         $agency = Agency::factory()->create();
         $source = NewsSource::factory()->for($agency)->create(['name' => 'Fanatik', 'domain' => 'fanatik.com', 'feed_url' => 'https://93.184.216.34/feed.xml', 'feed_format' => 'rss']);

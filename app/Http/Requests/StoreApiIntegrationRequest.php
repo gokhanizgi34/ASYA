@@ -22,7 +22,7 @@ class StoreApiIntegrationRequest extends FormRequest
     public function rules(): array
     {
         $provider = IntegrationProvider::tryFrom((string) $this->input('provider'));
-        $credentialRequired = ($provider?->isAi() === true || $this->input('auth_type') !== IntegrationAuthType::None->value)
+        $credentialRequired = ($provider?->usesSimpleSetup() === true || $this->input('auth_type') !== IntegrationAuthType::None->value)
             && ! $this->integrationForUniqueRule();
 
         return [
@@ -81,7 +81,7 @@ class StoreApiIntegrationRequest extends FormRequest
         $provider = IntegrationProvider::tryFrom((string) $this->input('provider'));
         $integration = $this->integrationForUniqueRule();
         $isAiProvider = $provider?->isAi() === true;
-        $isManagedProvider = $isAiProvider || $provider === IntegrationProvider::XTrends;
+        $isManagedProvider = $provider?->usesSimpleSetup() === true;
         $providerWasChanged = $integration && $integration->provider !== $provider;
 
         $this->merge([
@@ -92,7 +92,7 @@ class StoreApiIntegrationRequest extends FormRequest
                 : (filled($this->input('model')) ? trim((string) $this->input('model')) : null),
             'priority' => $isManagedProvider ? ($integration?->priority ?? 50) : (int) $this->input('priority', 50),
             'is_default' => $isAiProvider ? ($integration?->is_default ?? false) : $this->boolean('is_default'),
-            'visual_enabled' => $this->boolean('visual_enabled'),
+            'visual_enabled' => $provider === IntegrationProvider::Pixabay || $this->boolean('visual_enabled'),
             'base_url' => rtrim(trim((string) ($isManagedProvider ? $provider->defaultBaseUrl() : $this->input('base_url'))), '/'),
             'auth_type' => $isManagedProvider ? $provider->defaultAuthType()->value : $this->input('auth_type'),
             'username' => $isManagedProvider ? null : (filled($this->input('username')) ? trim((string) $this->input('username')) : null),

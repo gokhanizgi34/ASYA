@@ -7,12 +7,13 @@ use App\PublicationStatus;
 use App\Services\NewsDuplicateDetector;
 use App\Services\NotificationCenter;
 use App\Services\WordPressPublisher;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
-class PublishArticleToWordPress implements ShouldQueue
+class PublishArticleToWordPress implements ShouldBeUnique, ShouldQueue
 {
     use Queueable;
 
@@ -23,7 +24,14 @@ class PublishArticleToWordPress implements ShouldQueue
 
     public int $timeout = 120;
 
+    public int $uniqueFor = 600;
+
     public function __construct(public int $publicationId) {}
+
+    public function uniqueId(): string
+    {
+        return (string) $this->publicationId;
+    }
 
     public function handle(WordPressPublisher $publisher, ?NotificationCenter $notifications = null, ?NewsDuplicateDetector $duplicateDetector = null): void
     {
@@ -89,6 +97,10 @@ class PublishArticleToWordPress implements ShouldQueue
             $publication->publishingTarget->forceFill(['last_error' => $message])->save();
             ($notifications ?? app(NotificationCenter::class))->publicationFailed($publication);
             report($exception);
+
+            if (str_contains($message, 'WordPress kullanıcısı') && str_contains($message, 'yetkili değil')) {
+                return;
+            }
 
             throw $exception;
         }

@@ -16,6 +16,7 @@ class HoroscopeAiWriter
     public function __construct(
         private readonly AiIntegrationRegistry $registry,
         private readonly ExternalUrlGuard $urlGuard,
+        private readonly SystemSettings $settings,
     ) {}
 
     /** @return array<string, array{general: string, traits: string, rising: string, love: string, career: string, money: string, health: string, lucky_color: string, lucky_number: int}> */
@@ -46,7 +47,10 @@ class HoroscopeAiWriter
                 ->withQueryParameters(['key' => (string) $integration->credential])
                 ->connectTimeout(10)->timeout(max(60, $integration->timeout_seconds))
                 ->post($url, [
-                    'generationConfig' => ['responseMimeType' => 'application/json'],
+                    'generationConfig' => [
+                        'responseMimeType' => 'application/json',
+                        'maxOutputTokens' => (int) $this->settings->get('ai.max_output_tokens', $integration->agency_id),
+                    ],
                     'contents' => [['role' => 'user', 'parts' => [['text' => $prompt]]]],
                 ])->throw();
 
@@ -64,6 +68,7 @@ class HoroscopeAiWriter
                 ->post($url, [
                     'model' => $integration->model,
                     'response_format' => ['type' => 'json_object'],
+                    'max_tokens' => (int) $this->settings->get('ai.max_output_tokens', $integration->agency_id),
                     'messages' => [['role' => 'user', 'content' => $prompt]],
                 ])->throw();
 

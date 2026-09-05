@@ -5,6 +5,7 @@ namespace App\Services;
 use GuzzleHttp\Psr7\Response as PsrResponse;
 use Illuminate\Http\Client\Response;
 use RuntimeException;
+use Symfony\Component\Process\Exception\ProcessFailedException;
 use Symfony\Component\Process\Process;
 
 class NativeTlsHttpFetcher
@@ -113,7 +114,18 @@ class NativeTlsHttpFetcher
             $command[] = $url;
             $process = new Process($command);
             $process->setTimeout(25);
-            $process->mustRun();
+
+            try {
+                $process->mustRun();
+            } catch (ProcessFailedException $exception) {
+                $error = $exception->getProcess()->getErrorOutput();
+
+                if (str_contains($error, 'SSL certificate problem')) {
+                    throw new RuntimeException('Kaynağın HTTPS sertifika zinciri doğrulanamadı. Kaynak site geçerli ara sertifikalarıyla tam sertifika zinciri sunana kadar güvenli alım yapılamaz.', previous: $exception);
+                }
+
+                throw $exception;
+            }
             $status = (int) trim($process->getOutput());
             $bodySize = filesize($bodyPath);
 

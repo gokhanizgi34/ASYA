@@ -117,6 +117,35 @@ class ExternalTrendCollectorTest extends TestCase
         Queue::assertNothingPushed();
     }
 
+    public function test_x_trends_are_collected_from_the_turkey_web_page_without_an_api_integration(): void
+    {
+        Cache::flush();
+        Queue::fake([ProcessContentBatch::class]);
+        Http::preventStrayRequests();
+        config([
+            'services.external_trends.x_web_url' => 'https://93.184.216.34/turkey/',
+            'services.external_trends.x_max_trends' => 2,
+            'services.external_trends.max_items_per_run' => 5,
+        ]);
+        Http::fake(['https://93.184.216.34/turkey/' => Http::response($this->xTrendsHtml(), 200, ['Content-Type' => 'text/html'])]);
+        $agency = Agency::factory()->create();
+        SystemSetting::factory()->for($agency)->create([
+            'key' => 'trends.google_daily_item_limit',
+            'value' => '0',
+            'type' => SettingValueType::Integer,
+        ]);
+        User::factory()->editor()->for($agency)->create();
+        ApiIntegration::factory()->ai(IntegrationProvider::GoogleGemini)->for($agency)->create(['is_active' => true, 'credential' => 'gemini-key']);
+        PublishingTarget::factory()->for($agency)->create(['is_active' => true]);
+
+        $result = app(ExternalTrendCollector::class)->collect($agency->id);
+
+        $this->assertSame(['received' => 2, 'imported' => 2, 'queued' => 2], $result);
+        $this->assertDatabaseHas('raw_news_items', ['source_name' => 'X Gündemi', 'original_title' => 'Sivas Kongresi X gündeminde öne çıktı']);
+        $this->assertDatabaseHas('trend_topics', ['name' => 'Başakşehir X gündeminde öne çıktı', 'mention_count' => 0]);
+        Queue::assertPushedOn('content', ProcessContentBatch::class);
+    }
+
     private function googleTrendsRss(): string
     {
         return <<<'XML'
@@ -136,5 +165,19 @@ class ExternalTrendCollectorTest extends TestCase
 </channel>
 </rss>
 XML;
+    }
+
+    private function xTrendsHtml(): string
+    {
+        return <<<'HTML'
+<!doctype html><html><body>
+<div class="trend-card"><ol class="trend-card__list">
+<li><span class="trend-name"><a class="trend-link" href="https://twitter.com/search?q=Sivas">Sivas Kongresi</a></span></li>
+<li><span class="trend-name"><a class="trend-link" href="https://twitter.com/search?q=Basaksehir">Başakşehir</a></span></li>
+<li><span class="trend-name"><a class="trend-link" href="https://twitter.com/search?q=Osimhen">Osimhen</a></span></li>
+</ol></div>
+<div class="trend-card"><ol><li><span class="trend-name"><a class="trend-link">Eski konu</a></span></li></ol></div>
+</body></html>
+HTML;
     }
 }

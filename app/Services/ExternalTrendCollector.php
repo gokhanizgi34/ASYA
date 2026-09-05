@@ -8,6 +8,9 @@ use App\Models\RawNewsItem;
 use App\Models\TrendTopic;
 use App\RawNewsStatus;
 use App\TrendStatus;
+use DOMDocument;
+use DOMElement;
+use DOMXPath;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -194,7 +197,7 @@ class ExternalTrendCollector
         }
     }
 
-    /** @return array<int, array{external_id: string, source: string, title: string, body: string, url: string, image_url: null, score: float}> */
+    /** @return array<int, array{external_id: string, source: string, title: string, body: string, url: string, image_url: null, score: float, mention_count?: int}> */
     private function xTrends(int $agencyId): array
     {
         $integration = ApiIntegration::query()
@@ -211,42 +214,102 @@ class ExternalTrendCollector
             ->first();
 
         if (! $integration || blank($integration->credential)) {
-            return [];
+            try {
+                return $this->xWebTrends();
+            } catch (Throwable) {
+                return [];
+            }
         }
 
-        $endpoint = rtrim((string) config('services.external_trends.x_endpoint', 'https://api.x.com/2/trends/by/woeid'), '/')
-            .'/'.(int) config('services.external_trends.x_woeid', 23424969);
-        $this->urlGuard->assertSafe($endpoint);
-        $response = Http::acceptJson()
-            ->withToken((string) $integration->credential)
-            ->connectTimeout(8)
-            ->timeout(20)
-            ->get($endpoint, [
-                'max_trends' => (int) config('services.external_trends.x_max_trends', 10),
-                'trend.fields' => 'trend_name,tweet_count',
-            ])
-            ->throw();
+        try {
+            $endpoint = rtrim((string) config('services.external_trends.x_endpoint', 'https://api.x.com/2/trends/by/woeid'), '/')
+                .'/'.(int) config('services.external_trends.x_woeid', 23424969);
+            $this->urlGuard->assertSafe($endpoint);
+            $response = Http::acceptJson()
+                ->withToken((string) $integration->credential)
+                ->connectTimeout(8)
+                ->timeout(20)
+                ->get($endpoint, [
+                    'max_trends' => (int) config('services.external_trends.x_max_trends', 10),
+                    'trend.fields' => 'trend_name,tweet_count',
+                ])
+                ->throw();
 
-        return collect((array) data_get($response->json(), 'data', []))
-            ->filter(fn (mixed $item): bool => is_array($item) && filled($item['trend_name'] ?? null))
-            ->map(function (array $item): array {
-                $name = Str::of((string) $item['trend_name'])->squish()->toString();
-                $tweetCount = max(0, (int) ($item['tweet_count'] ?? 0));
+            return collect((array) data_get($response->json(), 'data', []))
+                ->filter(fn (mixed $item): bool => is_array($item) && filled($item['trend_name'] ?? null))
+                ->map(function (array $item): array {
+                    $name = Str::of((string) $item['trend_name'])->squish()->toString();
+                    $tweetCount = max(0, (int) ($item['tweet_count'] ?? 0));
 
-                return [
-                    'external_id' => 'x-trend-'.hash('sha256', Str::lower($name)),
-                    'source' => 'X Gündemi',
-                    'title' => $name.' X gündeminde öne çıktı',
-                    'body' => 'X Trends API verilerine göre “'.$name.'” başlığı Türkiye gündeminde öne çıktı.'
-                        .($tweetCount > 0 ? ' API tarafından bildirilen paylaşım sayısı yaklaşık '.number_format($tweetCount, 0, ',', '.').' seviyesindedir.' : '')
-                        .' Bu kayıt bir sosyal ağ gündem sinyalidir; kullanıcı iddiaları doğrulanmış gerçek gibi sunulmamalı, haber yalnızca trendin kapsamını ve kamuoyu ilgisini açıklamalıdır.',
-                    'url' => 'https://x.com/search?q='.rawurlencode($name),
-                    'image_url' => null,
-                    'score' => (float) $tweetCount,
-                ];
-            })
-            ->values()
-            ->all();
+                    return $this->xTrendItem($name, (float) $tweetCount, $tweetCount);
+                })
+                ->values()
+                ->all();
+        } catch (Throwable) {
+            try {
+                return $this->xWebTrends();
+            } catch (Throwable) {
+                return [];
+            }
+        }
+    }
+
+    /** @return array<int, array{external_id: string, source: string, title: string, body: string, url: string, image_url: null, score: float, mention_count: int}> */
+    private function xWebTrends(): array
+    {
+        return Cache::remember('external-trends:x-web:turkey', now()->addMinutes(10), function (): array {
+            $url = (string) config('services.external_trends.x_web_url', 'https://trends24.in/turkey/');
+            $this->urlGuard->assertSafe($url);
+            $response = Http::accept('text/html')->withUserAgent('ASYA-News-Automation/1.0')->connectTimeout(8)->timeout(20)->get($url)->throw();
+            $previous = libxml_use_internal_errors(true);
+            $document = new DOMDocument;
+            $loaded = $document->loadHTML('<?xml encoding="UTF-8">'.$response->body(), LIBXML_NONET | LIBXML_NOWARNING | LIBXML_NOERROR);
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+
+            if (! $loaded) {
+                throw new RuntimeException('Türkiye X gündem sayfası okunamadı.');
+            }
+
+            $nodes = (new DOMXPath($document))->query("(//div[contains(concat(' ', normalize-space(@class), ' '), ' trend-card ')])[1]//a[contains(concat(' ', normalize-space(@class), ' '), ' trend-link ')]");
+            $limit = max(1, (int) config('services.external_trends.x_max_trends', 10));
+            $minimumScore = max(1, (int) config('services.external_trends.min_traffic', 5000));
+            $items = [];
+
+            foreach ($nodes ?: [] as $index => $node) {
+                if (! $node instanceof DOMElement || count($items) >= $limit) {
+                    continue;
+                }
+
+                $name = Str::of(html_entity_decode($node->textContent, ENT_QUOTES | ENT_HTML5, 'UTF-8'))->squish()->limit(160, '')->toString();
+                if ($name === '') {
+                    continue;
+                }
+
+                $items[] = $this->xTrendItem($name, (float) ($minimumScore + max(0, $limit - $index)), 0);
+            }
+
+            if ($items === []) {
+                throw new RuntimeException('Türkiye X gündem sayfasında güncel konu bulunamadı.');
+            }
+
+            return $items;
+        });
+    }
+
+    /** @return array{external_id: string, source: string, title: string, body: string, url: string, image_url: null, score: float, mention_count: int} */
+    private function xTrendItem(string $name, float $score, int $mentionCount): array
+    {
+        return [
+            'external_id' => 'x-trend-'.hash('sha256', Str::lower($name)),
+            'source' => 'X Gündemi',
+            'title' => $name.' X gündeminde öne çıktı',
+            'body' => '“'.$name.'” başlığı Türkiye X gündem listesinde öne çıktı. Başlıkla ilgili güncel gelişmeler kamuoyuna bildirildi. Bu kayıt bir sosyal ağ gündem sinyalidir; kullanıcı iddiaları doğrulanmış gerçek gibi sunulmamalı ve haber ayrıntıları güvenilir kaynaklarla karşılaştırılmalıdır.',
+            'url' => 'https://x.com/search?q='.rawurlencode($name),
+            'image_url' => null,
+            'score' => $score,
+            'mention_count' => $mentionCount,
+        ];
     }
 
     /** @param array{source: string, title: string, url: string, score: float} $item */
@@ -260,7 +323,7 @@ class ExternalTrendCollector
             [
                 'name' => Str::limit($item['title'], 160, ''),
                 'status' => $score >= 70 ? TrendStatus::Hot : TrendStatus::Rising,
-                'mention_count' => max(1, (int) $item['score']),
+                'mention_count' => max(0, (int) ($item['mention_count'] ?? $item['score'])),
                 'source_count' => 1,
                 'score' => round($score, 2),
                 'velocity' => 100,
@@ -275,6 +338,10 @@ class ExternalTrendCollector
     /** @param array{title: string, body: string, url: string} $item */
     private function isTurkeyRelevant(array $item): bool
     {
+        if ($item['source'] === 'X Gündemi') {
+            return true;
+        }
+
         $host = Str::lower((string) parse_url($item['url'], PHP_URL_HOST));
         $text = Str::lower(Str::ascii($item['title'].' '.$item['body']));
 

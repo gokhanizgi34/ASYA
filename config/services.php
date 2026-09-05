@@ -47,6 +47,7 @@ return [
         'google_geo' => env('GOOGLE_TRENDS_GEO', 'TR'),
         'google_rss_url' => env('GOOGLE_TRENDS_RSS_URL', 'https://trends.google.com/trending/rss?geo=TR'),
         'x_endpoint' => env('X_TRENDS_ENDPOINT', 'https://api.x.com/2/trends/by/woeid'),
+        'x_web_url' => env('X_TRENDS_WEB_URL', 'https://trends24.in/turkey/'),
         'x_woeid' => (int) env('X_TRENDS_WOEID', 23424969),
         'x_max_trends' => (int) env('X_TRENDS_MAX', 10),
         'max_items_per_run' => (int) env('EXTERNAL_TRENDS_MAX_ITEMS', 20),

@@ -10,6 +10,7 @@ Artisan::command('inspire', function () {
 
 Schedule::command('trends:collect')->everyFifteenMinutes()->withoutOverlapping(10);
 Schedule::command('automation:midnight')->dailyAt('00:00')->withoutOverlapping(60);
+Schedule::command('automation:monthly-special-days')->monthlyOn(1, '00:01')->withoutOverlapping(60);
 Schedule::command('schedules:run')->everyMinute()->withoutOverlapping(5);
 Schedule::command('analytics:aggregate')->hourlyAt(5)->withoutOverlapping(10);
 Schedule::command('news:import')->everyTenMinutes()->withoutOverlapping(10);

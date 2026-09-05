@@ -53,10 +53,11 @@ class ExternalTrendCollectorTest extends TestCase
         $this->assertSame(1, $result['queued']);
         $rawNews = RawNewsItem::query()->firstOrFail();
         $this->assertSame(RawNewsStatus::Queued, $rawNews->status);
-        $this->assertSame('Örnek Haber', $rawNews->source_name);
-        $this->assertSame('Türkiye’de Ramazan Bayramı tarihleri açıklandı', $rawNews->original_title);
+        $this->assertSame('Google Trends', $rawNews->source_name);
+        $this->assertSame('Türkiye’de ramazan bayramı ne zaman', $rawNews->original_title);
         $this->assertStringNotContainsString('arama hacmi', $rawNews->original_body);
-        $this->assertSame('https://93.184.216.34/images/detay.jpg', $rawNews->original_image_url);
+        $this->assertSame('https://trends.google.com/explore?geo=TR', $rawNews->source_url);
+        Http::assertNotSent(fn ($request): bool => str_contains($request->url(), '/haber/ramazan-bayrami'));
         $this->assertDatabaseCount('trend_topics', 1);
         $this->assertTrue((bool) data_get(TrendTopic::query()->firstOrFail()->context, 'external'));
         Queue::assertPushedOn('content', ProcessContentBatch::class);
@@ -110,8 +111,8 @@ class ExternalTrendCollectorTest extends TestCase
 
         $result = app(ExternalTrendCollector::class)->collect($agency->id);
 
-        $this->assertSame(['received' => 1, 'imported' => 0, 'queued' => 0], $result);
-        $this->assertDatabaseCount('raw_news_items', 0);
+        $this->assertSame(['received' => 1, 'imported' => 1, 'queued' => 0], $result);
+        $this->assertDatabaseCount('raw_news_items', 1);
         $this->assertDatabaseCount('trend_topics', 1);
         Queue::assertNothingPushed();
     }

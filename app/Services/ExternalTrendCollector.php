@@ -113,7 +113,7 @@ class ExternalTrendCollector
     /** @return array<int, array{external_id: string, source: string, title: string, body: string, url: string, image_url: ?string, score: float}> */
     private function googleTrends(int $agencyId): array
     {
-        return Cache::remember('external-trends:google:'.config('services.external_trends.google_geo', 'TR'), now()->addMinutes(10), function () use ($agencyId): array {
+        return Cache::remember('external-trends:google:'.config('services.external_trends.google_geo', 'TR'), now()->addMinutes(10), function (): array {
             $url = (string) config('services.external_trends.google_rss_url', 'https://trends.google.com/trending/rss?geo=TR');
             $this->urlGuard->assertSafe($url);
             $response = Http::accept('application/rss+xml, application/xml;q=0.9')
@@ -150,26 +150,19 @@ class ExternalTrendCollector
                     continue;
                 }
 
-                $url = filter_var($relatedUrl, FILTER_VALIDATE_URL)
-                    ? $relatedUrl
-                    : 'https://trends.google.com/trending?geo='.(string) config('services.external_trends.google_geo', 'TR');
-                $relatedContent = filter_var($relatedUrl, FILTER_VALIDATE_URL)
-                    ? $this->relatedNewsContent($relatedUrl, $relatedTitle, $agencyId)
-                    : null;
-                $title = $relatedContent['title'] ?? ($relatedTitle ?: $trendName);
-                $body = $relatedContent['body'] ?? ('Trend keşif sinyali “'.$trendName.'” başlığıyla ilgilidir.'
-                    .($trafficLabel !== '' ? ' Akışta bildirilen yaklaşık arama hacmi '.$trafficLabel.' seviyesindedir.' : '')
-                    .($relatedTitle !== '' ? ' Trendle ilişkilendirilen güncel haber başlığı: “'.$relatedTitle.'”.' : '')
-                    .($relatedSource !== '' ? ' İlişkili yayın kaynağı: '.$relatedSource.'.' : '')
-                    .' Bu kayıt yalnızca keşif sinyalidir; haberleştirmede bağlantılı kaynakta doğrulanabilen bilgiler kullanılmalıdır.');
+                $url = 'https://trends.google.com/explore?geo='.(string) config('services.external_trends.google_geo', 'TR');
+                $title = $trendName;
+                $body = 'Türkiye Google Trends keşif akışında “'.$trendName.'” araması öne çıktı. Bu başlık, kullanıcıların gün içinde bilgi aradığı ve gelişmeleri takip etmek istediği bir gündem sinyalidir.'
+                    .($trafficLabel !== '' ? ' Akışta bildirilen yaklaşık ilgi seviyesi '.$trafficLabel.' olarak ölçüldü.' : '')
+                    .' Arama ilgisinin nedeni, gelişmenin tarihi, kapsamı, ilgili kurumların açıklamaları ve vatandaşları ilgilendiren sonuçlar ayrı ayrı doğrulanarak haberleştirilmelidir. Gündemdeki gelişmenin ayrıntıları kamuoyuna bildirildi. Bu kayıt yalnızca arama ilgisi sinyalidir; doğrulanmamış iddialar haber metnine eklenmemelidir.';
 
                 $items[] = [
                     'external_id' => 'google-trends-'.hash('sha256', Str::lower($trendName)),
-                    'source' => $relatedSource ?: 'Google Trends',
+                    'source' => 'Google Trends',
                     'title' => $title,
                     'body' => $body,
                     'url' => $url,
-                    'image_url' => $relatedContent['image_url'] ?? (filter_var($imageUrl, FILTER_VALIDATE_URL) ? $imageUrl : null),
+                    'image_url' => null,
                     'score' => (float) $this->metricCount($trafficLabel),
                 ];
             }

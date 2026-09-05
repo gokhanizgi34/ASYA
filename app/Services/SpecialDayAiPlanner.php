@@ -70,7 +70,7 @@ class SpecialDayAiPlanner
 
     private function prompt(int $year): string
     {
-        return $year.' yılı için Türkiye’de haber ve SEO içeriği üretmeye değer resmi, dini, milli ve yaygın uluslararası özel günleri hazırla. Uydurma gün ekleme. Her gün için kullanıcıların gerçekten arayacağı 2-6 özgün haber başlığı öner. Ramazan ve bayram tarihlerini ilgili yılın doğru takvimine göre yaz. İçeriğin etkinlikten kaç gün önce hazırlanacağını 1-45 arasında lead_days alanında belirt. Yalnızca saf JSON döndür. Şema: {"events":[{"date":"'.$year.'-01-01","title":"Yılbaşı","lead_days":14,"seo_topics":["Yılbaşı tatili kaç gün","Yılbaşında ulaşım nasıl olacak"]}]}';
+        return $year.' yılı için Türkiye’de haber ve SEO içeriği üretmeye değer resmi, dini, milli ve yaygın uluslararası özel günleri hazırla. Uydurma gün ekleme. Her gün için kullanıcıların gerçekten arayacağı 2-6 özgün SEO soru ve haber başlığı öner. Sorular; günün neden ve nasıl ortaya çıktığı, tarihi, ne zaman olduğu, resmi tatil durumu, memur ve işçilerin tatil veya mesai durumu, mesaj ve kutlama önerileri, çocuklar için etkinlik fikirleri gibi farklı arama niyetlerini kapsasın. Örneğin Cumhuriyet Bayramı için “29 Ekim neden Cumhuriyet Bayramı oldu?”, “29 Ekim Cumhuriyet Bayramı tarihi”, “Cumhuriyet Bayramı resmi tatil mi?” ve “Cumhuriyet Bayramı’nda işçi mesai ücreti” gibi sorgular üret. Ramazan ve bayram tarihlerini ilgili yılın doğru takvimine göre yaz. İçeriğin etkinlikten kaç gün önce hazırlanacağını 1-45 arasında lead_days alanında belirt. Yalnızca saf JSON döndür. Şema: {"events":[{"date":"'.$year.'-01-01","title":"Yılbaşı","lead_days":14,"seo_topics":["Yılbaşı tatili kaç gün","Yılbaşında ulaşım nasıl olacak"]}]}';
     }
 
     /** @return array<string, mixed> */
@@ -135,7 +135,14 @@ class SpecialDayAiPlanner
                 'event_date' => $date->toDateString(),
                 'content_due_at' => $date->subDays(14)->toDateString(),
                 'title' => $event[1],
-                'seo_topics' => [$event[1].' ne zaman', $year.' '.$event[1]],
+                'seo_topics' => [
+                    $event[1].' ne zaman',
+                    $year.' '.$event[1].' tarihi',
+                    $event[1].' resmi tatil mi',
+                    $event[1].' mesajları ve kutlama sözleri',
+                    $event[1].' çocuklar için etkinlik önerileri',
+                    $event[1].' çalışanlara mesai ücreti',
+                ],
                 'ai_provider' => 'Yerel resmi takvim',
             ];
         })->all();

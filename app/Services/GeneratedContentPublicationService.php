@@ -22,7 +22,7 @@ class GeneratedContentPublicationService
     ) {}
 
     /**
-     * @param  array{title:string,summary:string,body:string,keywords?:array<int,string>,hashtags?:array<int,string>,category:string,source_type:string,source_id:string|int,slug?:string,destination?:string}  $content
+     * @param  array{title:string,summary:string,body:string,keywords?:array<int,string>,hashtags?:array<int,string>,category:string,source_type:string,source_id:string|int,slug?:string,destination?:string,scheduled_for?:\DateTimeInterface|string,schedule_timezone?:string}  $content
      */
     public function send(int $agencyId, User $creator, array $content): Article
     {
@@ -91,11 +91,11 @@ class GeneratedContentPublicationService
                     'remote_author_id' => null,
                     'remote_category_ids' => [],
                     'remote_tag_ids' => [],
-                    'scheduled_for' => null,
-                    'schedule_timezone' => (string) config('app.timezone'),
+                    'scheduled_for' => $content['scheduled_for'] ?? null,
+                    'schedule_timezone' => $content['schedule_timezone'] ?? (string) config('app.timezone'),
                 ], $creator), 5);
             }
-            if ($publication->canBeDispatched()) {
+            if (! filled($content['scheduled_for'] ?? null) && $publication->canBeDispatched()) {
                 PublishArticleToWordPress::dispatch($publication->id)->onQueue('publishing')->afterCommit();
             }
         });

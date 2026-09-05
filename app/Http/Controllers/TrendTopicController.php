@@ -21,7 +21,9 @@ class TrendTopicController extends Controller
         $user = $request->user();
         abort_unless($user instanceof User, 401);
         $status = (string) $request->query('status', '');
-        $query = TrendTopic::query()->visibleTo($user)->with('agency');
+        $provider = $request->query('provider') === 'x' ? 'x' : 'google';
+        $providerName = $provider === 'x' ? 'X Gündemi' : 'Google Trends';
+        $query = TrendTopic::query()->visibleTo($user)->with('agency')->where('context->provider', $providerName);
         if (TrendStatus::tryFrom($status)) {
             $query->where('status', $status);
         }
@@ -39,16 +41,23 @@ class TrendTopicController extends Controller
             ->where('external_id', 'like', 'google-trends-%')
             ->whereBetween('created_at', [now()->startOfDay(), now()->endOfDay()])
             ->count();
+        $providerCounts = [
+            'google' => TrendTopic::query()->visibleTo($user)->where('context->provider', 'Google Trends')->count(),
+            'x' => TrendTopic::query()->visibleTo($user)->where('context->provider', 'X Gündemi')->count(),
+        ];
+        $filteredTopics = TrendTopic::query()->visibleTo($user)->where('context->provider', $providerName);
 
         return view('trends.index', [
             'topics' => $query->orderByDesc('score')->orderByDesc('last_seen_at')->paginate(20)->withQueryString(),
             'statuses' => TrendStatus::cases(),
-            'statusCounts' => TrendTopic::query()->visibleTo($user)->selectRaw('status, count(*) as aggregate')->groupBy('status')->pluck('aggregate', 'status'),
+            'statusCounts' => (clone $filteredTopics)->selectRaw('status, count(*) as aggregate')->groupBy('status')->pluck('aggregate', 'status'),
+            'provider' => $provider,
+            'providerCounts' => $providerCounts,
             'agencies' => $agencies,
             'settingsAgencyId' => $settingsAgencyId,
             'googleTrendDailyLimit' => $googleTrendDailyLimit,
             'googleTrendUsedToday' => $googleTrendUsedToday,
-            'lastAnalyzedAt' => TrendTopic::query()->visibleTo($user)->max('analyzed_at'),
+            'lastAnalyzedAt' => (clone $filteredTopics)->max('analyzed_at'),
         ]);
     }
 

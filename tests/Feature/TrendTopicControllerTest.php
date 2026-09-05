@@ -21,11 +21,25 @@ class TrendTopicControllerTest extends TestCase
         $agency = Agency::factory()->create();
         $otherAgency = Agency::factory()->create();
         $editor = User::factory()->editor()->for($agency)->create();
-        $own = TrendTopic::factory()->for($agency)->create(['name' => 'Kendi Trendi']);
+        $own = TrendTopic::factory()->for($agency)->create(['name' => 'Google Trendi', 'context' => ['provider' => 'Google Trends']]);
         $other = TrendTopic::factory()->for($otherAgency)->create(['name' => 'Başka Trend']);
 
         $this->actingAs($editor)->get(route('trends.index'))->assertOk()->assertSee($own->name)->assertDontSee($other->name);
         $this->actingAs($editor)->get(route('trends.show', $other))->assertForbidden();
+    }
+
+    public function test_google_and_x_trends_are_separate_and_internal_topics_are_hidden(): void
+    {
+        $agency = Agency::factory()->create();
+        $editor = User::factory()->editor()->for($agency)->create();
+        TrendTopic::factory()->for($agency)->create(['name' => 'Google Başlığı', 'context' => ['provider' => 'Google Trends']]);
+        TrendTopic::factory()->for($agency)->create(['name' => 'X Başlığı', 'context' => ['provider' => 'X Gündemi']]);
+        TrendTopic::factory()->for($agency)->create(['name' => 'Kendi Haber Başlığı', 'context' => ['sources' => ['seo:1']]]);
+
+        $this->actingAs($editor)->get(route('trends.index'))
+            ->assertOk()->assertSee('Google Başlığı')->assertDontSee('X Başlığı')->assertDontSee('Kendi Haber Başlığı');
+        $this->actingAs($editor)->get(route('trends.index', ['provider' => 'x']))
+            ->assertOk()->assertSee('X Başlığı')->assertDontSee('Google Başlığı')->assertDontSee('Kendi Haber Başlığı');
     }
 
     public function test_trend_detail_contains_snapshots_and_escaped_context(): void

@@ -9,10 +9,12 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('trends:collect')->everyFifteenMinutes()->withoutOverlapping(10);
+Schedule::command('automation:midnight')->dailyAt('00:00')->withoutOverlapping(60);
 Schedule::command('schedules:run')->everyMinute()->withoutOverlapping(5);
 Schedule::command('analytics:aggregate')->hourlyAt(5)->withoutOverlapping(10);
 Schedule::command('news:import')->everyTenMinutes()->withoutOverlapping(10);
 Schedule::command('news:pipeline')->everyMinute()->withoutOverlapping(5);
+Schedule::command('app:retry-failed-automation')->everyTwoMinutes()->withoutOverlapping(5);
 Schedule::command('news:purge-expired')->hourly()->withoutOverlapping(10);
 Schedule::command('app:generate-daily-menu')->dailyAt('08:00')->withoutOverlapping(10);
 Schedule::command('database:backup')->dailyAt('03:30')->withoutOverlapping(60);

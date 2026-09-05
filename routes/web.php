@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Controllers\AdviceLetterController;
 use App\Http\Controllers\AgencyController;
 use App\Http\Controllers\AgencyMailSettingController;
 use App\Http\Controllers\AgencyMailTestController;
@@ -118,10 +117,6 @@ Route::middleware(['auth', EnsureUserIsActive::class, ApplySystemSettings::class
     Route::resource('tarifler', RecipeController::class)
         ->parameters(['tarifler' => 'recipe'])
         ->names('recipes');
-
-    Route::resource('mukaddes-abla', AdviceLetterController::class)
-        ->parameters(['mukaddes-abla' => 'adviceLetter'])
-        ->names('advice-letters');
 
     Route::post('/burclar/gun-hazirla', HoroscopeDayController::class)->name('horoscopes.day');
     Route::get('/burclar', [HoroscopeForecastController::class, 'index'])->name('horoscopes.index');

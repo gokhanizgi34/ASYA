@@ -6,7 +6,6 @@ $sections = [
 ['SEO Analizi','Bir haberin arama motoru uygunluğunu ölçer ve iyileştirme önerileri verir.','Haber ayrıntısından SEO ekranını açıp analizi çalıştırın.'],
 ['Ham Haber Havuzu','Kaynaklardan gelen işlenmemiş haberleri toplar ve toplu işlem uygular.','Kayıtları filtreleyin; uygun olanları seçip işleme veya habere dönüştürün.'],
 ['Burçlar','Günlük burç içeriklerini hazırlar ve düzenler.','Günü hazırlayın, burç metinlerini gözden geçirip güncelleyin.'],
-['Mukaddes Abla','Okur sorularını, yanıt taslaklarını ve yayın sürecini yönetir.','Yeni mektup ekleyin, yanıtı hazırlayın ve durumunu güncelleyin.'],
 ['AI Yazarlar','Yapay zekâ destekli köşe yazarı profilleri ve yazı taslakları oluşturur.','Yazar kişiliğini tanımlayın; konu verip taslak üretin ve editör kontrolünden geçirin.'],
 ['Promptlar','Yapay zekâ talimatlarını merkezi ve tekrar kullanılabilir biçimde saklar.','Prompt ekleyin, simülasyonda sınayın ve ilgili iş akışında kullanın.'],
 ['AI Haber Üretimi','Çok sayıda içeriği toplu görevler halinde üretir.','İçerik grubunu ve adetleri belirleyin; görevi kuyruğa gönderip sonucu izleyin.'],
@@ -36,7 +35,7 @@ $sections = [
 ];
 @endphp
 <section class="space-y-8">
-<header><p class="text-sm font-bold tracking-[.18em] text-cyan-300">S.S.S. VE KULLANIM REHBERİ</p><h1 class="mt-3 text-4xl font-black">ASYA nasıl kullanılır?</h1><p class="mt-3 max-w-3xl text-slate-400">Programdaki 32 ana bölümün amacı ve temel kullanımı. Aradığınız başlığı tarayıcının sayfada bul özelliğiyle de arayabilirsiniz.</p></header>
+<header><p class="text-sm font-bold tracking-[.18em] text-cyan-300">S.S.S. VE KULLANIM REHBERİ</p><h1 class="mt-3 text-4xl font-black">ASYA nasıl kullanılır?</h1><p class="mt-3 max-w-3xl text-slate-400">Programdaki 31 ana bölümün amacı ve temel kullanımı. Aradığınız başlığı tarayıcının sayfada bul özelliğiyle de arayabilirsiniz.</p></header>
 <div class="grid gap-4 md:grid-cols-2">@foreach($sections as $index => [$name,$purpose,$usage])<details class="group rounded-2xl border border-white/10 bg-white/[.04] p-5" @if($index===0) open @endif><summary class="flex cursor-pointer list-none items-center justify-between gap-3"><span><small class="mr-2 text-cyan-300">{{ str_pad($index+1,2,'0',STR_PAD_LEFT) }}</small><strong>{{ $name }}</strong></span><span class="text-slate-500 group-open:rotate-45">+</span></summary><div class="mt-4 space-y-3 border-t border-white/10 pt-4 text-sm"><p><strong class="text-cyan-300">Amacı:</strong> <span class="text-slate-300">{{ $purpose }}</span></p><p><strong class="text-violet-300">Kullanımı:</strong> <span class="text-slate-300">{{ $usage }}</span></p></div></details>@endforeach</div>
 <div class="rounded-2xl border border-cyan-400/20 bg-cyan-400/5 p-6"><h2 class="text-xl font-bold">Yanıt bulamadınız mı?</h2><p class="mt-2 text-slate-400">Destek talebi oluşturduğunuzda kayıt panelde tutulur ve ayarlı bildirim adresine e-posta gönderilir.</p><a href="{{ route('support-tickets.create') }}" class="mt-4 inline-block rounded-xl bg-cyan-400 px-4 py-2 font-bold text-slate-950">Destek talebi oluştur</a></div>
 </section>

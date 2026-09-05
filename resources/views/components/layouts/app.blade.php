@@ -34,7 +34,6 @@
                     'items' => [
                         ['label' => 'Günlük Burçlar', 'route' => 'horoscopes.index', 'pattern' => 'horoscopes.*', 'allowed' => auth()->user()->can('viewAny', App\Models\HoroscopeForecast::class)],
                         ['label' => 'Tarif Havuzu', 'route' => 'recipes.index', 'pattern' => 'recipes.*', 'allowed' => auth()->user()->can('viewAny', App\Models\Recipe::class)],
-                        ['label' => 'Mukaddes Abla', 'route' => 'advice-letters.index', 'pattern' => 'advice-letters.*', 'allowed' => auth()->user()->can('viewAny', App\Models\AdviceLetter::class)],
                         ['label' => 'Özel Gün Takvimi', 'route' => 'schedules.index', 'pattern' => 'schedules.*', 'allowed' => auth()->user()->can('viewAny', App\Models\ScheduleEntry::class)],
                         ['label' => 'Trend Motoru', 'route' => 'trends.index', 'pattern' => 'trends.*', 'allowed' => auth()->user()->can('viewAny', App\Models\TrendTopic::class)],
                     ],

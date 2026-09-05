@@ -81,7 +81,11 @@ class AutomaticArticlePublisher
 
         $sourceImageUrl = $rawNewsItem->original_image_url;
 
-        $this->visualManager->ensure($article, $sourceImageUrl);
+        $visual = $this->visualManager->ensure($article, $sourceImageUrl, $rawNewsItem->source_url);
+
+        if ($visual === null) {
+            throw new RuntimeException('Haber yayınlanamadı: kaynak görseli, ekran görüntüsü, yedek görsel veya ajans logosu alınamadı.');
+        }
 
         $article->forceFill([
             'status' => ArticleStatus::Published,

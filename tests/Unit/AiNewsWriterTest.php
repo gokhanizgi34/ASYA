@@ -99,6 +99,29 @@ class AiNewsWriterTest extends TestCase
         Http::assertSent(fn (Request $request): bool => str_contains(
             (string) data_get($request->data(), 'messages.1.content'),
             'Başlıkta, özette ve haber gövdesinde "Google Trends"',
+        ) && str_contains((string) data_get($request->data(), 'messages.1.content'), 'neden gündem olduğunu oluşturan gerçek olayı'));
+    }
+
+    public function test_content_intent_trend_prompt_requests_the_content_instead_of_reporting_the_trend(): void
+    {
+        Http::fake(['https://93.184.216.34/v1/chat/completions' => Http::response(['choices' => [['message' => ['content' => json_encode([
+            'title' => 'En Güzel ve Anlamlı Cuma Mesajları',
+            'summary' => 'Sevdiklerinizle paylaşabileceğiniz kısa, anlamlı ve dualı cuma mesajları farklı seçeneklerle bir araya getirildi.',
+            'body' => $this->istanbulGeneratedBody(),
+        ], JSON_UNESCAPED_UNICODE)]]]])]);
+        $agency = Agency::factory()->create();
+        ApiIntegration::factory()->for($agency)->create(['provider' => IntegrationProvider::OpenAi, 'base_url' => 'https://93.184.216.34/v1/models', 'credential' => 'trend-key', 'is_active' => true]);
+        $rawNewsItem = RawNewsItem::factory()->for($agency)->create([
+            'external_id' => 'x-trend-cuma-mesajlari',
+            'original_title' => 'Cuma Mesajları',
+            'original_body' => $this->istanbulSourceBody(),
+        ]);
+
+        app(AiNewsWriter::class)->write($rawNewsItem, ['target_length' => 600]);
+
+        Http::assertSent(fn (Request $request): bool => str_contains(
+            (string) data_get($request->data(), 'messages.1.content'),
+            'kullanıcıya doğrudan aradığı mesajları, sözleri',
         ));
     }
 

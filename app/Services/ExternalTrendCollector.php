@@ -60,6 +60,23 @@ class ExternalTrendCollector
                 continue;
             }
 
+            $this->recordTrend($agencyId, $item);
+            $item = $this->enrichTrendWithNewsContext($agencyId, $item);
+
+            if ($item === null) {
+                continue;
+            }
+
+            if (isset($item['matched_raw_news_id'])) {
+                $matchedRawNews = RawNewsItem::query()->find($item['matched_raw_news_id']);
+                if ($matchedRawNews && in_array($matchedRawNews->status, [RawNewsStatus::Pending, RawNewsStatus::Failed], true)) {
+                    $matchedRawNews->update(['status' => RawNewsStatus::Pending, 'failure_message' => null]);
+                    $rawNewsItemIds[] = $matchedRawNews->id;
+                }
+
+                continue;
+            }
+
             $checksum = hash('sha256', Str::lower($item['source'].'|'.$item['title']));
 
             if (RawNewsItem::withTrashed()->where('agency_id', $agencyId)->where('checksum', $checksum)->exists()
@@ -81,8 +98,6 @@ class ExternalTrendCollector
                 'checksum' => $checksum,
                 'discovered_at' => now(),
             ];
-
-            $this->recordTrend($agencyId, $item);
 
             try {
                 $this->qualityGate->assertRawNews(new RawNewsItem($attributes));
@@ -359,7 +374,8 @@ class ExternalTrendCollector
         return [
             'external_id' => 'x-trend-'.hash('sha256', Str::lower($name)),
             'source' => 'X Gündemi',
-            'title' => $name.' X gündeminde öne çıktı',
+            'title' => $name,
+            'trend_name' => $name,
             'body' => '“'.$name.'” başlığı Türkiye X gündem listesinde öne çıktı. RSS akışında başlığın güncel Türkiye sıralamasında yer aldığı bildirildi. Akış, Türkiye saat dilimi ve Türkçe dil seçeneğiyle yayımlanan listenin en yeni kaydından alındı. RSS verisi konu başlığını ve sıralamasını sağlıyor ancak paylaşım metinlerini, kişi iddialarını veya olay ayrıntılarını doğrulamıyor. Sıralama yalnızca kamuoyu ilgisini gösterir ve başlık altındaki iddiaların doğruluğunu kanıtlamaz. Haber hazırlanırken konu güvenilir haber kaynakları ve resmî açıklamalarla karşılaştırılmalıdır.',
             'url' => 'https://x.com/search?q='.rawurlencode($name),
             'image_url' => null,
@@ -368,16 +384,94 @@ class ExternalTrendCollector
         ];
     }
 
+    /**
+     * @param  array{external_id: string, source: string, title: string, body: string, url: string, image_url: ?string, score: float, mention_count?: int, trend_name?: string}  $item
+     * @return array{external_id: string, source: string, title: string, body: string, url: string, image_url: ?string, score: float, mention_count?: int, trend_name?: string, matched_raw_news_id?: int}|null
+     */
+    private function enrichTrendWithNewsContext(int $agencyId, array $item): ?array
+    {
+        $trendName = Str::of((string) ($item['trend_name'] ?? $item['title']))->replaceStart('#', '')->squish()->toString();
+
+        if ($trendName === '') {
+            return null;
+        }
+
+        if ($this->isContentIntent($trendName)) {
+            return [
+                ...$item,
+                'title' => $trendName,
+                'body' => '“'.$trendName.'” sorgusuna yönelik içerik talebinin arttığı bildirildi. Bu sorgu doğrudan içerik arama niyeti taşıyor. Okuyucu bu başlık altında paylaşılabilir, özgün ve Türkçe seçenekler arıyor. İçerik trendin adını haberleştiriyormuş gibi yazılmamalıdır. Başlıkta sosyal medya, gündem veya trend ifadeleri kullanılmamalıdır. İstenen mesajlar ya da sözler farklı duygu ve kullanım amaçlarına uygun biçimde hazırlanmalıdır. Metin, okuyucuya doğrudan aradığı seçenekleri sunmalıdır.',
+                'url' => $item['url'],
+                'image_url' => null,
+                'trend_name' => $trendName,
+            ];
+        }
+
+        $tokens = $this->trendTokens($trendName);
+        if ($tokens === []) {
+            return null;
+        }
+
+        $match = RawNewsItem::query()
+            ->where('agency_id', $agencyId)
+            ->where('created_at', '>=', now()->subDays(3))
+            ->where(fn ($query) => $query->whereNull('external_id')->orWhere(fn ($nested) => $nested->where('external_id', 'not like', 'x-trend-%')->where('external_id', 'not like', 'google-trends-%')))
+            ->latest('id')
+            ->limit(500)
+            ->get()
+            ->map(fn (RawNewsItem $candidate): array => [
+                'item' => $candidate,
+                'score' => count(array_intersect($tokens, $this->trendTokens($candidate->original_title.' '.$candidate->original_body))),
+            ])
+            ->filter(fn (array $candidate): bool => $candidate['score'] >= min(2, count($tokens)))
+            ->sortByDesc('score')
+            ->first();
+
+        if (! is_array($match) || ! $match['item'] instanceof RawNewsItem) {
+            return null;
+        }
+
+        $source = $match['item'];
+
+        return [
+            ...$item,
+            'title' => $source->original_title,
+            'body' => $source->original_body,
+            'url' => $source->source_url ?: $item['url'],
+            'image_url' => $source->original_image_url,
+            'trend_name' => $trendName,
+            'matched_raw_news_id' => $source->id,
+        ];
+    }
+
+    private function isContentIntent(string $trendName): bool
+    {
+        return preg_match('/\b(mesajlari|sozleri|dualari|tarifi|tarifleri|yorumlari|etkinlikleri)\b/u', Str::lower(Str::ascii($trendName))) === 1;
+    }
+
+    /** @return array<int, string> */
+    private function trendTokens(string $text): array
+    {
+        $stopWords = ['gundeminde', 'gundem', 'trend', 'oldu', 'neden', 'icin', 'ile', 've', 'bir'];
+
+        return collect(preg_split('/[^a-z0-9]+/', Str::lower(Str::ascii($text))) ?: [])
+            ->filter(fn (string $token): bool => (strlen($token) >= 3 || ctype_digit($token)) && ! in_array($token, $stopWords, true))
+            ->unique()
+            ->values()
+            ->all();
+    }
+
     /** @param array{source: string, title: string, url: string, score: float} $item */
     private function recordTrend(int $agencyId, array $item): void
     {
-        $normalized = Str::of($item['title'])->lower()->ascii()->replaceMatches('/[^a-z0-9]+/', ' ')->squish()->limit(160, '')->toString();
+        $trendName = (string) ($item['trend_name'] ?? $item['title']);
+        $normalized = Str::of($trendName)->lower()->ascii()->replaceMatches('/[^a-z0-9]+/', ' ')->squish()->limit(160, '')->toString();
         $score = min(100, max(1, $item['score'] > 0 ? log10($item['score'] + 1) * 20 : 20));
 
         TrendTopic::query()->updateOrCreate(
             ['agency_id' => $agencyId, 'normalized_name' => $normalized],
             [
-                'name' => Str::limit($item['title'], 160, ''),
+                'name' => Str::limit($trendName, 160, ''),
                 'status' => $score >= 70 ? TrendStatus::Hot : TrendStatus::Rising,
                 'mention_count' => max(0, (int) ($item['mention_count'] ?? $item['score'])),
                 'source_count' => 1,

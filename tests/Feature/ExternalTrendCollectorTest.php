@@ -45,19 +45,22 @@ class ExternalTrendCollectorTest extends TestCase
             'credential' => 'gemini-key',
         ]);
         PublishingTarget::factory()->for($agency)->create(['is_active' => true]);
+        $sourceNews = RawNewsItem::factory()->for($agency)->create([
+            'external_id' => 'official-ramazan-bayrami',
+            'original_title' => 'Türkiye’de Ramazan Bayramı tarihleri açıklandı',
+            'original_body' => 'Ramazan Bayramı tarihleri açıklandı. Vatandaşların tatil hazırlıkları başladı. Ulaşım noktalarında tedbirler planlandı. Bayram programının ayrıntıları bildirildi.',
+            'status' => RawNewsStatus::Pending,
+        ]);
 
         $result = app(ExternalTrendCollector::class)->collect($agency->id);
 
         $this->assertSame(1, $result['received']);
-        $this->assertSame(1, $result['imported']);
+        $this->assertSame(0, $result['imported']);
         $this->assertSame(1, $result['queued']);
-        $rawNews = RawNewsItem::query()->firstOrFail();
+        $rawNews = $sourceNews->refresh();
         $this->assertSame(RawNewsStatus::Queued, $rawNews->status);
-        $this->assertSame('Google Trends', $rawNews->source_name);
-        $this->assertSame('Türkiye’de ramazan bayramı ne zaman', $rawNews->original_title);
-        $this->assertStringNotContainsString('arama hacmi', $rawNews->original_body);
-        $this->assertSame('https://trends.google.com/explore?geo=TR', $rawNews->source_url);
-        Http::assertNotSent(fn ($request): bool => str_contains($request->url(), '/haber/ramazan-bayrami'));
+        $this->assertSame('Türkiye’de Ramazan Bayramı tarihleri açıklandı', $rawNews->original_title);
+        $this->assertDatabaseCount('raw_news_items', 1);
         $this->assertDatabaseCount('trend_topics', 1);
         $this->assertTrue((bool) data_get(TrendTopic::query()->firstOrFail()->context, 'external'));
         Queue::assertPushedOn('content', ProcessContentBatch::class);
@@ -111,8 +114,8 @@ class ExternalTrendCollectorTest extends TestCase
 
         $result = app(ExternalTrendCollector::class)->collect($agency->id);
 
-        $this->assertSame(['received' => 1, 'imported' => 1, 'queued' => 0], $result);
-        $this->assertDatabaseCount('raw_news_items', 1);
+        $this->assertSame(['received' => 1, 'imported' => 0, 'queued' => 0], $result);
+        $this->assertDatabaseCount('raw_news_items', 0);
         $this->assertDatabaseCount('trend_topics', 1);
         Queue::assertNothingPushed();
     }
@@ -150,10 +153,10 @@ class ExternalTrendCollectorTest extends TestCase
 
         $result = app(ExternalTrendCollector::class)->collect($agency->id);
 
-        $this->assertSame(['received' => 2, 'imported' => 2, 'queued' => 2], $result);
-        $this->assertDatabaseHas('raw_news_items', ['source_name' => 'X Gündemi', 'original_title' => 'Sivas Kongresi X gündeminde öne çıktı']);
-        $this->assertDatabaseHas('trend_topics', ['name' => 'Başakşehir X gündeminde öne çıktı', 'mention_count' => 0]);
-        Queue::assertPushedOn('content', ProcessContentBatch::class);
+        $this->assertSame(['received' => 2, 'imported' => 0, 'queued' => 0], $result);
+        $this->assertDatabaseHas('trend_topics', ['name' => 'Sivas Kongresi', 'mention_count' => 0]);
+        $this->assertDatabaseHas('trend_topics', ['name' => 'Başakşehir', 'mention_count' => 0]);
+        Queue::assertNothingPushed();
     }
 
     public function test_x_trends_rss_is_used_before_the_html_fallback(): void
@@ -175,9 +178,9 @@ class ExternalTrendCollectorTest extends TestCase
 
         $result = app(ExternalTrendCollector::class)->collect($agency->id);
 
-        $this->assertSame(['received' => 2, 'imported' => 2, 'queued' => 2], $result);
-        $this->assertDatabaseHas('raw_news_items', ['original_title' => '#FenerinMaçıVar X gündeminde öne çıktı']);
-        $this->assertDatabaseHas('trend_topics', ['name' => 'Başakşehir X gündeminde öne çıktı', 'mention_count' => 0]);
+        $this->assertSame(['received' => 2, 'imported' => 1, 'queued' => 1], $result);
+        $this->assertDatabaseHas('raw_news_items', ['original_title' => 'Cuma Mesajları']);
+        $this->assertDatabaseHas('trend_topics', ['name' => 'Başakşehir', 'mention_count' => 0]);
         Http::assertNotSent(fn ($request): bool => $request->url() === 'https://93.184.216.34/turkey/');
     }
 
@@ -222,7 +225,7 @@ HTML;
 <?xml version="1.0" encoding="UTF-8"?>
 <rss xmlns:content="http://purl.org/rss/1.0/modules/content/" version="2.0"><channel>
 <title>Twitter Trending</title>
-<item><title>Turkey Twitter Trends</title><content:encoded><![CDATA[<p>Twitter Trends Turkey: 1) #FenerinMaçıVar 2) Başakşehir 3) Eski konu ..[top50]</p>]]></content:encoded></item>
+<item><title>Turkey Twitter Trends</title><content:encoded><![CDATA[<p>Twitter Trends Turkey: 1) Cuma Mesajları 2) Başakşehir 3) Eski konu ..[top50]</p>]]></content:encoded></item>
 <item><title>Eski liste</title><content:encoded><![CDATA[<p>Twitter Trends Turkey: 1) Dünkü konu</p>]]></content:encoded></item>
 </channel></rss>
 XML;

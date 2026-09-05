@@ -182,9 +182,12 @@ PROMPT);
         $targetLength = max(180, min($supportedLength, (int) ($promptSnapshot['target_length'] ?? 600)));
         $isTrendSignal = str_starts_with((string) $rawNewsItem->external_id, 'google-trends-')
             || str_starts_with((string) $rawNewsItem->external_id, 'x-trend-');
-        $trendInstruction = $isTrendSignal
-            ? 'Bu kayıt bir trend keşif sinyalidir. Bağlantılı gerçek haberi esas al. Başlıkta, özette ve haber gövdesinde "Google Trends", "X gündemi", "arama hacmi", "yükselişte" veya "haberle ilişkilendirildi" gibi sistem ifadeleri kullanma. Okuyucuya doğrudan olayın haberini anlat; yetersiz ayrıntıyı uydurma.'
-            : '';
+        $isContentIntent = $isTrendSignal && preg_match('/\b(mesajlari|sozleri|dualari|tarifi|tarifleri|yorumlari|etkinlikleri)\b/u', Str::lower(Str::ascii($rawNewsItem->original_title))) === 1;
+        $trendInstruction = match (true) {
+            $isContentIntent => 'Bu trend bir içerik arama niyetidir. Trend olduğunu anlatma; kullanıcıya doğrudan aradığı mesajları, sözleri, duaları, tarifleri, yorumları veya etkinlik önerilerini üret. Başlıkta ve gövdede "gündem oldu", "sosyal medyada", "trend", "arama hacmi" gibi ifadeler kullanma.',
+            $isTrendSignal => 'Bu kayıt doğrulanmış haber kaynaklarıyla eşleştirilmiş bir trend keşif sinyalidir. Gündem kelimesini değil, neden gündem olduğunu oluşturan gerçek olayı haberleştir. Örneğin skor trendinde takım, rakip, sonuç ve sonuç doğuran gelişmeyi başlığa taşı. Başlıkta, özette ve haber gövdesinde "Google Trends", "X gündemi", "sosyal medyada gündem oldu", "ifadesi gündem oldu", "arama hacmi", "yükselişte" veya "haberle ilişkilendirildi" gibi sistem ifadeleri kullanma. Yetersiz ayrıntıyı uydurma.',
+            default => '',
+        };
 
         return <<<PROMPT
 Editoryal talimat: {$configuredTemplate}

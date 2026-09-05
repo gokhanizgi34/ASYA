@@ -244,17 +244,70 @@ class ExternalTrendCollector
         }
 
         try {
-            $webItems = $this->xWebTrends();
+            $feedItems = $this->xRssTrends();
         } catch (Throwable) {
-            $webItems = [];
+            try {
+                $feedItems = $this->xWebTrends();
+            } catch (Throwable) {
+                $feedItems = [];
+            }
         }
 
-        return collect([...$apiItems, ...$webItems])
+        return collect([...$apiItems, ...$feedItems])
             ->sortByDesc('score')
             ->unique('external_id')
             ->take(max(1, (int) config('services.external_trends.x_max_trends', 10)))
             ->values()
             ->all();
+    }
+
+    /** @return array<int, array{external_id: string, source: string, title: string, body: string, url: string, image_url: null, score: float, mention_count: int}> */
+    private function xRssTrends(): array
+    {
+        return Cache::remember('external-trends:x-rss:turkey', now()->addMinutes(10), function (): array {
+            $url = (string) config('services.external_trends.x_rss_url');
+            $this->urlGuard->assertSafe($url);
+            $response = Http::accept('application/rss+xml, application/xml;q=0.9, text/xml;q=0.8')
+                ->withUserAgent('ASYA-News-Automation/1.0')
+                ->connectTimeout(8)
+                ->timeout(20)
+                ->get($url)
+                ->throw();
+            $previous = libxml_use_internal_errors(true);
+            $xml = simplexml_load_string($response->body(), SimpleXMLElement::class, LIBXML_NONET | LIBXML_NOCDATA);
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+
+            if (! $xml instanceof SimpleXMLElement || ! isset($xml->channel->item[0])) {
+                throw new RuntimeException('Türkiye X gündem RSS akışı okunamadı.');
+            }
+
+            $latest = $xml->channel->item[0];
+            $namespaces = $latest->getNamespaces(true);
+            $encoded = isset($namespaces['content']) ? (string) $latest->children($namespaces['content'])->encoded : '';
+            $text = Str::of(html_entity_decode(strip_tags($encoded), ENT_QUOTES | ENT_HTML5, 'UTF-8'))
+                ->replaceMatches('/^.*?Twitter Trends Turkey:\s*/iu', '')
+                ->replaceMatches('/\s*\.\.\[top50\].*$/iu', '')
+                ->squish()
+                ->toString();
+            preg_match_all('/(?:^|\s)\d+\)\s*(.+?)(?=\s+\d+\)|$)/u', $text, $matches);
+            $limit = max(1, (int) config('services.external_trends.x_max_trends', 10));
+            $minimumScore = max(1, (int) config('services.external_trends.min_traffic', 5000));
+            $items = collect($matches[1] ?? [])
+                ->map(fn (string $name): string => Str::of($name)->squish()->limit(160, '')->toString())
+                ->filter()
+                ->unique(fn (string $name): string => Str::lower($name))
+                ->take($limit)
+                ->values()
+                ->map(fn (string $name, int $index): array => $this->xTrendItem($name, (float) ($minimumScore + $limit - $index), 0))
+                ->all();
+
+            if ($items === []) {
+                throw new RuntimeException('Türkiye X gündem RSS akışında güncel konu bulunamadı.');
+            }
+
+            return $items;
+        });
     }
 
     /** @return array<int, array{external_id: string, source: string, title: string, body: string, url: string, image_url: null, score: float, mention_count: int}> */

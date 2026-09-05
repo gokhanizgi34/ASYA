@@ -156,6 +156,31 @@ class ExternalTrendCollectorTest extends TestCase
         Queue::assertPushedOn('content', ProcessContentBatch::class);
     }
 
+    public function test_x_trends_rss_is_used_before_the_html_fallback(): void
+    {
+        Cache::flush();
+        Queue::fake([ProcessContentBatch::class]);
+        Http::preventStrayRequests();
+        config([
+            'services.external_trends.x_rss_url' => 'https://93.184.216.34/x-rss',
+            'services.external_trends.x_web_url' => 'https://93.184.216.34/turkey/',
+            'services.external_trends.x_max_trends' => 2,
+        ]);
+        Http::fake(['https://93.184.216.34/x-rss' => Http::response($this->xTrendsRss(), 200, ['Content-Type' => 'application/rss+xml'])]);
+        $agency = Agency::factory()->create();
+        SystemSetting::factory()->for($agency)->create(['key' => 'trends.google_daily_item_limit', 'value' => '0', 'type' => SettingValueType::Integer]);
+        User::factory()->editor()->for($agency)->create();
+        ApiIntegration::factory()->ai(IntegrationProvider::GoogleGemini)->for($agency)->create(['is_active' => true, 'credential' => 'gemini-key']);
+        PublishingTarget::factory()->for($agency)->create(['is_active' => true]);
+
+        $result = app(ExternalTrendCollector::class)->collect($agency->id);
+
+        $this->assertSame(['received' => 2, 'imported' => 2, 'queued' => 2], $result);
+        $this->assertDatabaseHas('raw_news_items', ['original_title' => '#FenerinMaçıVar X gündeminde öne çıktı']);
+        $this->assertDatabaseHas('trend_topics', ['name' => 'Başakşehir X gündeminde öne çıktı', 'mention_count' => 0]);
+        Http::assertNotSent(fn ($request): bool => $request->url() === 'https://93.184.216.34/turkey/');
+    }
+
     private function googleTrendsRss(): string
     {
         return <<<'XML'
@@ -189,5 +214,17 @@ XML;
 <div class="trend-card"><ol><li><span class="trend-name"><a class="trend-link">Eski konu</a></span></li></ol></div>
 </body></html>
 HTML;
+    }
+
+    private function xTrendsRss(): string
+    {
+        return <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:content="http://purl.org/rss/1.0/modules/content/" version="2.0"><channel>
+<title>Twitter Trending</title>
+<item><title>Turkey Twitter Trends</title><content:encoded><![CDATA[<p>Twitter Trends Turkey: 1) #FenerinMaçıVar 2) Başakşehir 3) Eski konu ..[top50]</p>]]></content:encoded></item>
+<item><title>Eski liste</title><content:encoded><![CDATA[<p>Twitter Trends Turkey: 1) Dünkü konu</p>]]></content:encoded></item>
+</channel></rss>
+XML;
     }
 }

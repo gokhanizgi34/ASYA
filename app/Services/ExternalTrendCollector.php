@@ -212,47 +212,49 @@ class ExternalTrendCollector
             ->orderBy('priority')
             ->first();
 
-        if (! $integration || blank($integration->credential)) {
+        $apiItems = [];
+
+        if ($integration && filled($integration->credential)) {
             try {
-                return $this->xWebTrends();
+                $endpoint = rtrim((string) config('services.external_trends.x_endpoint', 'https://api.x.com/2/trends/by/woeid'), '/')
+                    .'/'.(int) config('services.external_trends.x_woeid', 23424969);
+                $this->urlGuard->assertSafe($endpoint);
+                $response = Http::acceptJson()
+                    ->withToken((string) $integration->credential)
+                    ->connectTimeout(8)
+                    ->timeout(20)
+                    ->get($endpoint, [
+                        'max_trends' => (int) config('services.external_trends.x_max_trends', 10),
+                        'trend.fields' => 'trend_name,tweet_count',
+                    ])
+                    ->throw();
+
+                $apiItems = collect((array) data_get($response->json(), 'data', []))
+                    ->filter(fn (mixed $item): bool => is_array($item) && filled($item['trend_name'] ?? null))
+                    ->map(function (array $item): array {
+                        $name = Str::of((string) $item['trend_name'])->squish()->toString();
+                        $tweetCount = max(0, (int) ($item['tweet_count'] ?? 0));
+
+                        return $this->xTrendItem($name, (float) $tweetCount, $tweetCount);
+                    })
+                    ->values()
+                    ->all();
             } catch (Throwable) {
-                return [];
             }
         }
 
         try {
-            $endpoint = rtrim((string) config('services.external_trends.x_endpoint', 'https://api.x.com/2/trends/by/woeid'), '/')
-                .'/'.(int) config('services.external_trends.x_woeid', 23424969);
-            $this->urlGuard->assertSafe($endpoint);
-            $response = Http::acceptJson()
-                ->withToken((string) $integration->credential)
-                ->connectTimeout(8)
-                ->timeout(20)
-                ->get($endpoint, [
-                    'max_trends' => (int) config('services.external_trends.x_max_trends', 10),
-                    'trend.fields' => 'trend_name,tweet_count',
-                ])
-                ->throw();
-
-            $items = collect((array) data_get($response->json(), 'data', []))
-                ->filter(fn (mixed $item): bool => is_array($item) && filled($item['trend_name'] ?? null))
-                ->map(function (array $item): array {
-                    $name = Str::of((string) $item['trend_name'])->squish()->toString();
-                    $tweetCount = max(0, (int) ($item['tweet_count'] ?? 0));
-
-                    return $this->xTrendItem($name, (float) $tweetCount, $tweetCount);
-                })
-                ->values()
-                ->all();
-
-            return $items !== [] ? $items : $this->xWebTrends();
+            $webItems = $this->xWebTrends();
         } catch (Throwable) {
-            try {
-                return $this->xWebTrends();
-            } catch (Throwable) {
-                return [];
-            }
+            $webItems = [];
         }
+
+        return collect([...$apiItems, ...$webItems])
+            ->sortByDesc('score')
+            ->unique('external_id')
+            ->take(max(1, (int) config('services.external_trends.x_max_trends', 10)))
+            ->values()
+            ->all();
     }
 
     /** @return array<int, array{external_id: string, source: string, title: string, body: string, url: string, image_url: null, score: float, mention_count: int}> */

@@ -13,12 +13,13 @@ class NewsContentQualityGate
     {
         $body = $this->plainText($rawNewsItem->original_body);
         $title = $this->plainText($rawNewsItem->original_title);
+        $isSocialSource = $rawNewsItem->newsSource?->source_type === 'social';
 
         if (preg_match('/^(?:t\\.?c\\.?\\s*)?.{2,80}\\s+(?:belediyesi|valiliği|kaymakamlığı)$/iu', $title) === 1) {
             throw new DomainException('Sayfa başlığı bir haber başlığı değil; kurumsal liste veya ana sayfa içeriğidir.');
         }
 
-        if (Str::length($body) < 350 || count($this->sentences($body)) < 4) {
+        if ((! $isSocialSource && Str::length($body) < 350) || count($this->sentences($body)) < ($isSocialSource ? 1 : 4)) {
             throw new DomainException('Ham haber özeti değil, en az dört anlamlı cümleden oluşan tam haber gövdesi gereklidir.');
         }
 

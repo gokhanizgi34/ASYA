@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Models\Agency;
+use App\Models\NewsSource;
 use App\Models\RawNewsItem;
 use App\Services\NewsContentQualityGate;
 use DomainException;
@@ -39,6 +40,19 @@ class NewsContentQualityGateTest extends TestCase
         $this->expectExceptionMessage('tekrarlanan');
 
         app(NewsContentQualityGate::class)->assertGenerated($rawNewsItem, $content);
+    }
+
+    public function test_social_source_short_event_caption_passes_the_raw_news_gate(): void
+    {
+        $agency = Agency::factory()->create();
+        $source = NewsSource::factory()->for($agency)->create(['source_type' => 'social']);
+        $rawNewsItem = RawNewsItem::factory()->for($agency)->for($source, 'newsSource')->create([
+            'original_title' => 'Aydos Kalesi tadilat nedeniyle kapanıyor',
+            'original_body' => 'Aydos Kalesi tadilat çalışmaları nedeniyle 7-11 Eylül tarihleri arasında ziyarete kapalı olacaktır. 12 Eylül itibarıyla yeniden açılacaktır.',
+        ]);
+
+        app(NewsContentQualityGate::class)->assertRawNews($rawNewsItem);
+        $this->addToAssertionCount(1);
     }
 
     public function test_coherent_grounded_agency_story_passes_quality_gate(): void

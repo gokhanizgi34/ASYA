@@ -493,6 +493,7 @@ class ExternalTrendCollector
 
                     return $result;
                 })
+                ->filter(fn (array $result): bool => $result['match_score'] > 0)
                 ->sortByDesc('match_score')
                 ->take(3)
                 ->values();

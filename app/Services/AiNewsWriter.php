@@ -124,7 +124,7 @@ class AiNewsWriter
         $response = $this->baseRequest($integration)
             ->withQueryParameters(['key' => (string) $integration->credential])
             ->post($url, [
-                'generationConfig' => ['responseMimeType' => 'application/json', 'maxOutputTokens' => $this->maxOutputTokens($rawNewsItem->agency_id)],
+                'generationConfig' => ['responseMimeType' => 'application/json', 'temperature' => 0.2, 'maxOutputTokens' => $this->maxOutputTokens($rawNewsItem->agency_id)],
                 'systemInstruction' => ['parts' => [['text' => $this->systemPrompt($promptSnapshot)]]],
                 'contents' => [['role' => 'user', 'parts' => [['text' => $this->userPrompt($rawNewsItem, $promptSnapshot)]]]],
             ]);
@@ -279,13 +279,14 @@ PROMPT;
     /** @return array<string, mixed> */
     private function decodeJson(string $text): array
     {
-        $text = trim($text);
+        $text = trim(Str::of($text)->replaceMatches('/^```(?:json)?\s*|\s*```$/iu', '')->toString());
         $start = strpos($text, '{');
         $end = strrpos($text, '}');
-        $decoded = $start === false || $end === false ? null : json_decode(substr($text, $start, $end - $start + 1), true);
+        $json = $start === false || $end === false ? '' : substr($text, $start, $end - $start + 1);
+        $decoded = $json === '' ? null : json_decode($json, true, 512, JSON_INVALID_UTF8_SUBSTITUTE);
 
         if (! is_array($decoded)) {
-            throw new RuntimeException('Sağlayıcı yanıtı JSON olarak okunamadı.');
+            throw new RuntimeException('Sağlayıcı yanıtı JSON olarak okunamadı: '.json_last_error_msg());
         }
 
         return $decoded;

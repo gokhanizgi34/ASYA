@@ -21,6 +21,7 @@ class WordPressPublisher
 {
     public function __construct(
         private readonly RouteMethodLearner $routeMethodLearner,
+        private readonly DistrictCategoryResolver $districtCategoryResolver,
     ) {}
 
     /** @return array{post_id: string, media_id: int|null, url: string|null, response_meta: array<string, mixed>} */
@@ -76,7 +77,7 @@ class WordPressPublisher
         $postPayload = array_filter([
             'title' => $payload['title'],
             'slug' => $payload['slug'],
-            'content' => $this->formatContent($payload['content']),
+            'content' => $this->formatContent($payload['content'], $publication),
             'excerpt' => $payload['excerpt'],
             'status' => $publication->remote_status->value,
             'featured_media' => $mediaId,
@@ -242,7 +243,7 @@ class WordPressPublisher
                 'post_status' => $publication->remote_status->value,
                 'post_title' => $payload['title'],
                 'post_name' => $payload['slug'],
-                'post_content' => $this->formatContent($payload['content']),
+                'post_content' => $this->formatContent($payload['content'], $publication),
                 'post_excerpt' => $payload['excerpt'],
                 'post_author' => $payload['author'],
                 'post_thumbnail' => $mediaId,
@@ -413,11 +414,19 @@ class WordPressPublisher
         return Http::connectTimeout(5)->timeout(30)->acceptJson()->withBasicAuth($username, $credential);
     }
 
-    private function formatContent(string $content): string
+    private function formatContent(string $content, Publication $publication): string
     {
         $content = preg_replace('~(?:https?://|www\\.)\\S+~iu', '', $content) ?? $content;
+        $publication->loadMissing('article.agency', 'publishingTarget');
+        $searchTerm = $this->districtCategoryResolver->resolve($publication->article)
+            ?? $publication->article->agency?->category_name
+            ?? data_get($publication->article->editorial_metadata, 'category')
+            ?? data_get($publication->payload, 'taxonomy_names.categories.0')
+            ?? 'Haber';
+        $query = Str::of((string) $searchTerm)->ascii()->lower()->replaceMatches('/[^a-z0-9]+/', ' ')->squish()->replace(' ', '+')->toString();
+        $searchUrl = rtrim($publication->publishingTarget->base_url, '/').'/?s='.($query ?: 'haber');
 
-        return collect(preg_split('/\R{2,}/u', trim($content)) ?: [])
+        $formatted = collect(preg_split('/\R{2,}/u', trim($content)) ?: [])
             ->filter(fn (string $block): bool => filled(trim($block)))
             ->map(function (string $block): string {
                 $block = trim($block);
@@ -431,6 +440,8 @@ class WordPressPublisher
                 return '<p>'.nl2br(e($block), false).'</p>';
             })
             ->implode("\n");
+
+        return $formatted."\n".'<p><a href="'.e($searchUrl).'">'.e((string) $searchTerm).' haberleri</a></p>';
     }
 
     private function guardTargetUrl(string $url): void

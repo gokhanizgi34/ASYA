@@ -134,6 +134,23 @@ class AiNewsWriterTest extends TestCase
         app(AiNewsWriter::class)->write($rawNewsItem, ['target_length' => 600]);
     }
 
+    public function test_external_links_and_domain_names_are_removed_without_failing_news_generation(): void
+    {
+        Http::fake(['https://93.184.216.34/v1/chat/completions' => Http::response(['choices' => [['message' => ['content' => json_encode([
+            'title' => 'İstanbul ulaşımında gelişme example.com',
+            'summary' => 'Yeni düzenlemenin ayrıntıları https://example.com/haber bağlantısında yer aldı.',
+            'body' => $this->istanbulGeneratedBody().' Ayrıntılar www.example.org adresinde paylaşılmıştı.',
+            'keywords' => ['İstanbul ulaşım', 'example.com'],
+        ], JSON_UNESCAPED_UNICODE)]]]])]);
+        $agency = Agency::factory()->create();
+        ApiIntegration::factory()->for($agency)->create(['provider' => IntegrationProvider::OpenAi, 'base_url' => 'https://93.184.216.34/v1/models', 'credential' => 'agency-key', 'is_active' => true]);
+        $rawNewsItem = RawNewsItem::factory()->for($agency)->create(['original_title' => 'İstanbul ulaşımında yeni uygulama başladı', 'original_body' => $this->istanbulSourceBody()]);
+
+        $result = app(AiNewsWriter::class)->write($rawNewsItem, ['target_length' => 600]);
+
+        $this->assertStringNotContainsString('example.', $result['title'].' '.$result['summary'].' '.$result['body'].' '.implode(' ', $result['keywords']));
+    }
+
     public function test_gemini_is_tried_first_and_quota_error_falls_back_to_next_ai(): void
     {
         Http::preventStrayRequests();

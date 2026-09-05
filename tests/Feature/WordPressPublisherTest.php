@@ -48,6 +48,9 @@ class WordPressPublisherTest extends TestCase
         $this->assertSame(45, $result['media_id']);
         $this->assertSame(45, $publication->fresh()->remote_media_id);
         Http::assertSent(fn (Request $request): bool => $request->method() === 'POST' && str_ends_with($request->url(), '/posts') && str_contains((string) data_get($request->data(), 'content'), '<h2>Güvenli başlık</h2>') && str_contains((string) data_get($request->data(), 'content'), '&lt;script&gt;') && ! str_contains((string) data_get($request->data(), 'content'), '<script>'));
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
+            && str_ends_with($request->url(), '/posts')
+            && str_contains((string) data_get($request->data(), 'content'), 'https://news.example.com/?s='));
         Http::assertSentCount(3);
         $this->assertDatabaseHas('learned_routes', ['agency_id' => $publication->agency_id, 'path_pattern' => '/wp-json/wp/v2/posts', 'method' => 'POST', 'successful_count' => 1]);
     }

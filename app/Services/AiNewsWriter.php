@@ -201,17 +201,17 @@ PROMPT;
     private function normalize(string $text): array
     {
         $decoded = $this->decodeJson($text);
-        $title = Str::of(strip_tags((string) ($decoded['title'] ?? '')))->squish()->limit(220, '')->toString();
+        $title = Str::of(strip_tags($this->stripExternalLinks((string) ($decoded['title'] ?? ''))))->squish()->limit(220, '')->toString();
         $summary = Str::of(strip_tags($this->sanitizeAgencyBody((string) ($decoded['summary'] ?? ''))))->squish()->limit(320, '')->toString();
         $body = $this->sanitizeAgencyBody((string) ($decoded['body'] ?? ''));
-        $focusKeyword = Str::of(strip_tags((string) ($decoded['focus_keyword'] ?? '')))->squish()->limit(120, '')->toString();
+        $focusKeyword = Str::of(strip_tags($this->stripExternalLinks((string) ($decoded['focus_keyword'] ?? ''))))->squish()->limit(120, '')->toString();
         $keywords = $this->stringList($decoded['keywords'] ?? [], 10);
         $hashtags = collect($this->stringList($decoded['hashtags'] ?? [], 5))
             ->map(fn (string $hashtag): string => '#'.Str::studly(Str::of($hashtag)->replaceStart('#', '')->toString()))
             ->filter(fn (string $hashtag): bool => $hashtag !== '#')
             ->values()
             ->all();
-        $category = Str::of(strip_tags((string) ($decoded['category'] ?? 'Gündem')))->squish()->limit(80, '')->toString();
+        $category = Str::of(strip_tags($this->stripExternalLinks((string) ($decoded['category'] ?? 'Gündem'))))->squish()->limit(80, '')->toString();
 
         if ($title === '' || Str::length(strip_tags($body)) < 100) {
             throw new RuntimeException('Sağlayıcı eksik veya geçersiz haber JSON verisi döndürdü.');
@@ -242,11 +242,20 @@ PROMPT;
         $body = preg_replace('/\bKaynak(?:ça)?:\s*.*?\z/isu', '', $body) ?? $body;
         $body = preg_replace('/\s*\((?:Kaynak|Kaynakça):\s*[^)]*\)/isu', '', $body) ?? $body;
         $body = preg_replace('/[^.!?\r\n]{0,180}\b(?:haberine|kaynağına|aktardığına)\s+göre\s*[,;:]?\s*/iu', ' ', $body) ?? $body;
-        $body = preg_replace('/\[(?:https?:\/\/[^\]]+)\]\(https?:\/\/[^)]+\)|https?:\/\/\S+/iu', '', $body) ?? $body;
+        $body = $this->stripExternalLinks($body);
         $body = preg_replace('/[ \t]+([,.;:!?])/u', '$1', $body) ?? $body;
         $body = preg_replace('/[ \t]{2,}/u', ' ', $body) ?? $body;
 
         return trim($body);
+    }
+
+    private function stripExternalLinks(string $text): string
+    {
+        $text = preg_replace('/\[(?:[^\]]*)\]\((?:https?:\/\/|www\.)[^)]+\)/iu', '', $text) ?? $text;
+        $text = preg_replace('~(?:https?://|www\.)[^\s<>\]\)]+~iu', '', $text) ?? $text;
+        $text = preg_replace('/\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:com|net|org|tr|com\.tr|gov\.tr|bel\.tr)\b(?:\/[^\s<>\]\)]*)?/iu', '', $text) ?? $text;
+
+        return $text;
     }
 
     private function assertAgencyStyle(string $title, string $summary, string $body): void
@@ -268,7 +277,7 @@ PROMPT;
 
         return collect(is_array($value) ? $value : [])
             ->filter(fn (mixed $item): bool => is_scalar($item))
-            ->map(fn (mixed $item): string => Str::of(strip_tags((string) $item))->squish()->limit(120, '')->toString())
+            ->map(fn (mixed $item): string => Str::of(strip_tags($this->stripExternalLinks((string) $item)))->squish()->limit(120, '')->toString())
             ->filter()
             ->unique(fn (string $item): string => Str::lower($item))
             ->take($limit)

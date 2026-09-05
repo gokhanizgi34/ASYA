@@ -360,7 +360,7 @@ class ExternalTrendCollector
             'external_id' => 'x-trend-'.hash('sha256', Str::lower($name)),
             'source' => 'X Gündemi',
             'title' => $name.' X gündeminde öne çıktı',
-            'body' => '“'.$name.'” başlığı Türkiye X gündem listesinde öne çıktı. Başlıkla ilgili güncel gelişmeler kamuoyuna bildirildi. Bu kayıt bir sosyal ağ gündem sinyalidir; kullanıcı iddiaları doğrulanmış gerçek gibi sunulmamalı ve haber ayrıntıları güvenilir kaynaklarla karşılaştırılmalıdır.',
+            'body' => '“'.$name.'” başlığı Türkiye X gündem listesinde öne çıktı. RSS akışında başlığın güncel Türkiye sıralamasında yer aldığı bildirildi. Sıralama yalnızca kamuoyu ilgisini gösterir ve başlık altındaki iddiaların doğruluğunu kanıtlamaz. Haber hazırlanırken konu güvenilir haber kaynakları ve resmî açıklamalarla karşılaştırılmalıdır.',
             'url' => 'https://x.com/search?q='.rawurlencode($name),
             'image_url' => null,
             'score' => $score,

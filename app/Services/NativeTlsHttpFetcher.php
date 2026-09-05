@@ -26,7 +26,7 @@ class NativeTlsHttpFetcher
 
         for ($redirects = 0; $redirects <= 5; $redirects++) {
             $this->urlGuard->assertSafe($currentUrl);
-            [$status, $headers, $body] = $this->request($curl, $currentUrl, $accept, $userAgent, min(20 * 1024 * 1024, max(1024, $maxBodyBytes)));
+            [$status, $headers, $body] = $this->request($curl, $currentUrl, $accept, $userAgent, min(20 * 1024 * 1024, max(1024, $maxBodyBytes)), $allowInsecureTls);
 
             if (! in_array($status, [301, 302, 303, 307, 308], true)) {
                 return new Response(new PsrResponse($status, $headers, $body));
@@ -70,7 +70,7 @@ class NativeTlsHttpFetcher
     /**
      * @return array{int, array<string, array<int, string>>, string}
      */
-    private function request(string $curl, string $url, string $accept, string $userAgent, int $maxBodyBytes): array
+    private function request(string $curl, string $url, string $accept, string $userAgent, int $maxBodyBytes, bool $allowInsecureTls): array
     {
         $bodyPath = tempnam(sys_get_temp_dir(), 'asya-native-body-');
         $headerPath = tempnam(sys_get_temp_dir(), 'asya-native-header-');

@@ -12,8 +12,8 @@ return new class extends Migration
             $table->id();
             $table->foreignId('agency_id')->constrained()->cascadeOnDelete();
             $table->foreignId('publishing_target_id')->nullable()->constrained()->nullOnDelete();
-            $table->string('host', 253);
-            $table->string('path_pattern', 1000);
+            $table->string('host', 191);
+            $table->string('path_pattern', 500);
             $table->string('method', 10);
             $table->string('purpose')->nullable();
             $table->unsignedInteger('successful_count')->default(0);

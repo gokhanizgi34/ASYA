@@ -18,7 +18,7 @@ class NativeTlsHttpFetcher
         $curl = $this->curlPath();
 
         if ($curl === null) {
-            throw new RuntimeException('Windows yerel sertifika deposunu kullanan cURL bulunamadı.');
+            throw new RuntimeException('Sistem cURL istemcisi bulunamadı.');
         }
 
         $currentUrl = $url;
@@ -92,14 +92,14 @@ class NativeTlsHttpFetcher
             $bodySize = filesize($bodyPath);
 
             if ($status < 100 || $status > 599 || $bodySize === false || $bodySize > $maxBodyBytes) {
-                throw new RuntimeException('Windows CA yedeği geçersiz veya aşırı büyük bir yanıt döndürdü.');
+                throw new RuntimeException('Sistem cURL yanıtı geçersiz veya aşırı büyük.');
             }
 
             $body = file_get_contents($bodyPath);
             $rawHeaders = file_get_contents($headerPath);
 
             if ($body === false || $rawHeaders === false) {
-                throw new RuntimeException('Windows CA yedeği yanıtı okunamadı.');
+                throw new RuntimeException('Sistem cURL yanıtı okunamadı.');
             }
 
             return [$status, $this->parseHeaders($rawHeaders), $body];
@@ -160,6 +160,12 @@ class NativeTlsHttpFetcher
         }
 
         if (PHP_OS_FAMILY !== 'Windows') {
+            foreach (['/usr/bin/curl', '/bin/curl'] as $candidate) {
+                if (is_file($candidate) && is_executable($candidate)) {
+                    return $candidate;
+                }
+            }
+
             return null;
         }
 

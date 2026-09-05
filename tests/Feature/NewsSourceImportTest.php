@@ -286,6 +286,7 @@ XML;
         Http::preventStrayRequests();
         Http::fake(fn () => throw new ConnectionException('cURL error 60: SSL certificate problem: unable to get local issuer certificate'));
         $this->mock(NativeTlsHttpFetcher::class, function ($mock): void {
+            $mock->shouldReceive('caBundlePath')->andReturn(null);
             $mock->shouldReceive('fetch')->andReturnUsing(function (string $url): ClientResponse {
                 if (str_ends_with($url, '/feed/') || str_contains($url, '/wp-json/')) {
                     return new ClientResponse(new PsrResponse(404, ['Content-Type' => 'text/plain'], ''));

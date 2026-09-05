@@ -49,6 +49,23 @@ class NativeTlsHttpFetcher
         throw new RuntimeException('Kaynak izin verilenden fazla yönlendirme yaptı.');
     }
 
+    public function caBundlePath(): ?string
+    {
+        $configured = config('news_ingestion.ca_bundle_path');
+
+        if (is_string($configured) && $configured !== '' && is_readable($configured)) {
+            return $configured;
+        }
+
+        foreach (['/etc/ssl/certs/ca-certificates.crt', '/etc/pki/tls/certs/ca-bundle.crt', '/etc/ssl/ca-bundle.pem'] as $candidate) {
+            if (is_readable($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
     /**
      * @return array{int, array<string, array<int, string>>, string}
      */
@@ -62,7 +79,7 @@ class NativeTlsHttpFetcher
         }
 
         try {
-            $process = new Process([
+            $command = [
                 $curl,
                 '--silent',
                 '--show-error',
@@ -72,6 +89,7 @@ class NativeTlsHttpFetcher
                 '20',
                 '--max-filesize',
                 (string) $maxBodyBytes,
+                '--tlsv1.2',
                 '--proto',
                 '=http,https',
                 '--header',
@@ -84,8 +102,16 @@ class NativeTlsHttpFetcher
                 $headerPath,
                 '--write-out',
                 '%{http_code}',
-                $url,
-            ]);
+            ];
+            $caBundle = $this->caBundlePath();
+
+            if ($caBundle !== null) {
+                $command[] = '--cacert';
+                $command[] = $caBundle;
+            }
+
+            $command[] = $url;
+            $process = new Process($command);
             $process->setTimeout(25);
             $process->mustRun();
             $status = (int) trim($process->getOutput());

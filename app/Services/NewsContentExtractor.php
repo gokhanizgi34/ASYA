@@ -124,11 +124,17 @@ class NewsContentExtractor
         $userAgent = 'ASYA-News-Importer/2.0 (+authorized-public-content)';
 
         try {
-            $response = Http::accept($accept)
+            $request = Http::accept($accept)
                 ->withUserAgent($userAgent)
                 ->connectTimeout(8)
-                ->timeout(20)
-                ->get($url);
+                ->timeout(20);
+            $caBundle = $this->nativeTlsFetcher->caBundlePath();
+
+            if ($caBundle !== null) {
+                $request = $request->withOptions(['verify' => $caBundle]);
+            }
+
+            $response = $request->get($url);
         } catch (ConnectionException $exception) {
             if (! str_contains($exception->getMessage(), 'cURL error 60')) {
                 throw $exception;

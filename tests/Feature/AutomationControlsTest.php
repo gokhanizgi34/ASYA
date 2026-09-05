@@ -66,6 +66,27 @@ class AutomationControlsTest extends TestCase
             ->assertSee('value="7"', false);
     }
 
+    public function test_agency_owner_can_set_x_trends_daily_quota(): void
+    {
+        $agency = Agency::factory()->create();
+        $owner = User::factory()->agencyOwner()->for($agency)->create();
+
+        $this->actingAs($owner)
+            ->patch(route('trends.x-quota'), ['daily_limit' => 4])
+            ->assertRedirect(route('trends.index', ['provider' => 'x', 'agency_id' => $agency->id]));
+
+        $this->assertDatabaseHas('system_settings', [
+            'scope_key' => 'agency:'.$agency->id,
+            'key' => 'trends.x_daily_item_limit',
+            'value' => '4',
+        ]);
+
+        $this->actingAs($owner)->get(route('trends.index', ['provider' => 'x']))
+            ->assertOk()
+            ->assertSee('X gündemi günlük kotası')
+            ->assertSee('value="4"', false);
+    }
+
     public function test_queue_all_creates_real_content_batches_for_all_eligible_own_agency_items(): void
     {
         Queue::fake([ProcessContentBatch::class]);
@@ -119,6 +140,9 @@ class AutomationControlsTest extends TestCase
             ->assertForbidden();
         $this->actingAs($editor)
             ->patch(route('trends.google-quota'), ['daily_limit' => 5])
+            ->assertForbidden();
+        $this->actingAs($editor)
+            ->patch(route('trends.x-quota'), ['daily_limit' => 5])
             ->assertForbidden();
         $this->assertDatabaseCount('system_settings', 0);
     }

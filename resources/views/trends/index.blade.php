@@ -33,7 +33,32 @@
             </div>
         </div>
         @else
-            <div class="border-y border-cyan-300/20 py-4 text-sm text-slate-400">Türkiye X gündemi RSS üzerinden alınır; RSS kullanılamazsa web kaynağı otomatik devreye girer.</div>
+            <div class="rounded-2xl border border-cyan-300/20 bg-cyan-300/[.03] p-5">
+                <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+                    <div>
+                        <h2 class="text-lg font-black">X gündemi günlük kotası</h2>
+                        <p class="mt-2 text-sm text-slate-400">Bugün <strong class="text-white">{{ $xTrendUsedToday }}</strong> / <strong class="text-white">{{ $xTrendDailyLimit }}</strong> konu haberleştirildi. Kota dolsa da X başlıkları Trend Motoru'nda görünmeye devam eder.</p>
+                        <p class="mt-1 text-xs text-slate-500">Türkiye X gündemi RSS üzerinden alınır; RSS kullanılamazsa web kaynağı otomatik devreye girer.</p>
+                    </div>
+                    @can('updateAny', App\Models\SystemSetting::class)
+                        <form method="POST" action="{{ route('trends.x-quota') }}" class="flex flex-col gap-2 sm:flex-row">
+                            @csrf
+                            @method('PATCH')
+                            @if(auth()->user()->isSystemAdministrator())
+                                <select name="agency_id" class="rounded-xl border border-white/10 bg-slate-900 px-4 py-3">
+                                    @foreach($agencies as $agency)
+                                        <option value="{{ $agency->id }}" @selected($settingsAgencyId === $agency->id)>{{ $agency->name }}</option>
+                                    @endforeach
+                                </select>
+                            @else
+                                <input type="hidden" name="agency_id" value="{{ $settingsAgencyId }}">
+                            @endif
+                            <input type="number" name="daily_limit" value="{{ $xTrendDailyLimit }}" min="0" max="100" class="w-28 rounded-xl border border-white/10 bg-slate-900 px-4 py-3" aria-label="Günlük X gündemi haber kotası">
+                            <button class="rounded-xl bg-cyan-300 px-5 py-3 font-bold text-slate-950 hover:bg-cyan-200">Kotayı kaydet</button>
+                        </form>
+                    @endcan
+                </div>
+            </div>
         @endif
         <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">@foreach($statuses as $status)<a href="{{ route('trends.index', ['provider' => $provider, 'status' => $status->value]) }}" class="rounded-xl border p-4 {{ request('status') === $status->value ? 'border-fuchsia-300/50 bg-fuchsia-300/10' : 'border-white/10 bg-white/[.04]' }}"><span class="text-sm text-slate-400">{{ $status->label() }}</span><strong class="mt-2 block text-2xl">{{ $statusCounts[$status->value] ?? 0 }}</strong></a>@endforeach</div>
         <form method="GET" class="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[.04] p-4 sm:flex-row"><input type="hidden" name="provider" value="{{ $provider }}"><input name="q" value="{{ request('q') }}" placeholder="Trend konusu ara" class="flex-1 rounded-xl border border-white/10 bg-slate-900 px-4 py-3 outline-none focus:border-fuchsia-300"><select name="status" class="rounded-xl border border-white/10 bg-slate-900 px-4 py-3"><option value="">Tüm durumlar</option>@foreach($statuses as $status)<option value="{{ $status->value }}" @selected(request('status') === $status->value)>{{ $status->label() }}</option>@endforeach</select><button class="rounded-xl border border-fuchsia-300/30 px-5 py-3 font-bold text-fuchsia-200">Filtrele</button></form>

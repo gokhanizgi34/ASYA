@@ -38,7 +38,14 @@ class ExternalTrendCollector
             ->where('external_id', 'like', 'google-trends-%')
             ->whereBetween('created_at', [now()->startOfDay(), now()->endOfDay()])
             ->count();
+        $xDailyLimit = max(0, (int) $this->settings->get('trends.x_daily_item_limit', $agencyId));
+        $xImportedToday = RawNewsItem::query()
+            ->where('agency_id', $agencyId)
+            ->where('external_id', 'like', 'x-trend-%')
+            ->whereBetween('created_at', [now()->startOfDay(), now()->endOfDay()])
+            ->count();
         $googleImportedThisRun = 0;
+        $xImportedThisRun = 0;
         $googleItems = $googleImportedToday < $googleDailyLimit
             ? $this->googleTrends($agencyId)
             : [];
@@ -51,16 +58,19 @@ class ExternalTrendCollector
 
         foreach ($items as $item) {
             $isGoogleTrend = Str::startsWith($item['external_id'], 'google-trends-');
-
-            if ($isGoogleTrend && $googleImportedToday + $googleImportedThisRun >= $googleDailyLimit) {
-                continue;
-            }
+            $isXTrend = Str::startsWith($item['external_id'], 'x-trend-');
 
             if ($item['score'] < (float) config('services.external_trends.min_traffic', 5000) || ! $this->isTurkeyRelevant($item)) {
                 continue;
             }
 
             $this->recordTrend($agencyId, $item);
+
+            if (($isGoogleTrend && $googleImportedToday + $googleImportedThisRun >= $googleDailyLimit)
+                || ($isXTrend && $xImportedToday + $xImportedThisRun >= $xDailyLimit)) {
+                continue;
+            }
+
             $item = $this->enrichTrendWithNewsContext($agencyId, $item);
 
             if ($item === null) {
@@ -111,6 +121,9 @@ class ExternalTrendCollector
 
             if ($isGoogleTrend) {
                 $googleImportedThisRun++;
+            }
+            if ($isXTrend) {
+                $xImportedThisRun++;
             }
         }
 

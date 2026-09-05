@@ -41,6 +41,12 @@ class TrendTopicController extends Controller
             ->where('external_id', 'like', 'google-trends-%')
             ->whereBetween('created_at', [now()->startOfDay(), now()->endOfDay()])
             ->count();
+        $xTrendDailyLimit = (int) $settings->get('trends.x_daily_item_limit', $settingsAgencyId);
+        $xTrendUsedToday = $settingsAgencyId === null ? 0 : RawNewsItem::query()
+            ->where('agency_id', $settingsAgencyId)
+            ->where('external_id', 'like', 'x-trend-%')
+            ->whereBetween('created_at', [now()->startOfDay(), now()->endOfDay()])
+            ->count();
         $providerCounts = [
             'google' => TrendTopic::query()->visibleTo($user)->where('context->provider', 'Google Trends')->count(),
             'x' => TrendTopic::query()->visibleTo($user)->where('context->provider', 'X Gündemi')->count(),
@@ -57,6 +63,8 @@ class TrendTopicController extends Controller
             'settingsAgencyId' => $settingsAgencyId,
             'googleTrendDailyLimit' => $googleTrendDailyLimit,
             'googleTrendUsedToday' => $googleTrendUsedToday,
+            'xTrendDailyLimit' => $xTrendDailyLimit,
+            'xTrendUsedToday' => $xTrendUsedToday,
             'lastAnalyzedAt' => (clone $filteredTopics)->max('analyzed_at'),
         ]);
     }

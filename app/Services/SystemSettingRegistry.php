@@ -91,6 +91,16 @@ class SystemSettingRegistry
                 'min' => 0,
                 'max' => 100,
             ],
+            'trends.x_daily_item_limit' => [
+                'field' => 'trends_x_daily_item_limit',
+                'group' => 'İçerik',
+                'label' => 'X gündemi günlük kotası',
+                'description' => 'X gündeminden bir ajans için bir günde haberleştirilebilecek azami konu sayısı.',
+                'type' => SettingValueType::Integer,
+                'default' => 10,
+                'min' => 0,
+                'max' => 100,
+            ],
             'ai.max_input_characters' => [
                 'field' => 'ai_max_input_characters',
                 'group' => 'Yapay zekâ maliyeti',

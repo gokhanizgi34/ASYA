@@ -184,6 +184,28 @@ class ExternalTrendCollectorTest extends TestCase
         Http::assertNotSent(fn ($request): bool => $request->url() === 'https://93.184.216.34/turkey/');
     }
 
+    public function test_x_daily_quota_zero_keeps_topics_visible_without_creating_news(): void
+    {
+        Cache::flush();
+        Queue::fake([ProcessContentBatch::class]);
+        Http::preventStrayRequests();
+        config([
+            'services.external_trends.x_rss_url' => 'https://93.184.216.34/x-rss',
+            'services.external_trends.x_max_trends' => 2,
+        ]);
+        Http::fake(['https://93.184.216.34/x-rss' => Http::response($this->xTrendsRss(), 200, ['Content-Type' => 'application/rss+xml'])]);
+        $agency = Agency::factory()->create();
+        SystemSetting::factory()->for($agency)->create(['key' => 'trends.google_daily_item_limit', 'value' => '0', 'type' => SettingValueType::Integer]);
+        SystemSetting::factory()->for($agency)->create(['key' => 'trends.x_daily_item_limit', 'value' => '0', 'type' => SettingValueType::Integer]);
+
+        $result = app(ExternalTrendCollector::class)->collect($agency->id);
+
+        $this->assertSame(['received' => 2, 'imported' => 0, 'queued' => 0], $result);
+        $this->assertDatabaseCount('trend_topics', 2);
+        $this->assertDatabaseCount('raw_news_items', 0);
+        Queue::assertNothingPushed();
+    }
+
     private function googleTrendsRss(): string
     {
         return <<<'XML'

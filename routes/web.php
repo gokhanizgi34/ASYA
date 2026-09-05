@@ -75,6 +75,7 @@ use App\Http\Controllers\VisualAssetController;
 use App\Http\Controllers\VisualAssetEvaluationController;
 use App\Http\Controllers\VisualAssetFileController;
 use App\Http\Controllers\VisualAssetSelectionController;
+use App\Http\Controllers\XTrendQuotaController;
 use App\Http\Middleware\ApplySystemSettings;
 use App\Http\Middleware\EnsureUserIsActive;
 use Illuminate\Http\RedirectResponse;
@@ -236,6 +237,7 @@ Route::middleware(['auth', EnsureUserIsActive::class, ApplySystemSettings::class
     Route::patch('/sosyal-dinleme/bahisler/{socialMention}', [SocialMentionController::class, 'update'])->name('social-mentions.update');
 
     Route::patch('/trend-motoru/google-kotasi', GoogleTrendQuotaController::class)->name('trends.google-quota');
+    Route::patch('/trend-motoru/x-kotasi', XTrendQuotaController::class)->name('trends.x-quota');
     Route::post('/trend-motoru/analiz', TrendAnalysisController::class)->name('trends.analyze');
     Route::resource('trend-motoru', TrendTopicController::class)
         ->parameters(['trend-motoru' => 'trendTopic'])

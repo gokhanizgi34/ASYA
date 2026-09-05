@@ -26,7 +26,7 @@ return new class extends Migration
             $table->timestamps();
 
             $table->unique(['recipient_user_id', 'fingerprint']);
-            $table->index(['recipient_user_id', 'read_at', 'last_occurred_at']);
+            $table->index(['recipient_user_id', 'read_at', 'last_occurred_at'], 'notifications_recipient_read_last_idx');
         });
     }
 

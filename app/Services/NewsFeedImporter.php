@@ -43,7 +43,7 @@ class NewsFeedImporter
             ];
         }
 
-        $extraction = $this->extractor->extract((string) $source->feed_url, $source->agency_id);
+        $extraction = $this->extractor->extract((string) $source->feed_url, $source->agency_id, $source->allow_insecure_tls);
         $items = $extraction['items'];
         $imported = 0;
         $skipped = 0;

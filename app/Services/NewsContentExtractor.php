@@ -21,6 +21,8 @@ class NewsContentExtractor
 
     private const MAX_CRAWL_PAGES = 12;
 
+    private bool $allowInsecureTls = false;
+
     public function __construct(
         private readonly ExternalUrlGuard $urlGuard,
         private readonly NativeTlsHttpFetcher $nativeTlsFetcher,
@@ -36,7 +38,28 @@ class NewsContentExtractor
      *     crawled_pages: int
      * }
      */
-    public function extract(string $url, int $agencyId): array
+    public function extract(string $url, int $agencyId, bool $allowInsecureTls = false): array
+    {
+        $this->allowInsecureTls = $allowInsecureTls;
+
+        try {
+            return $this->extractFromUrl($url, $agencyId);
+        } finally {
+            $this->allowInsecureTls = false;
+        }
+    }
+
+    /**
+     * @return array{
+     *     items: array<int, array{external_id: ?string, title: string, body: string, url: ?string, image_url: ?string, published_at: Carbon}>,
+     *     method: string,
+     *     url: string,
+     *     status: int,
+     *     fingerprint: string,
+     *     crawled_pages: int
+     * }
+     */
+    private function extractFromUrl(string $url, int $agencyId): array
     {
         $response = $this->fetch($url);
         $body = $this->validBody($response);
@@ -130,7 +153,9 @@ class NewsContentExtractor
                 ->timeout(20);
             $caBundle = $this->nativeTlsFetcher->caBundlePath();
 
-            if ($caBundle !== null) {
+            if ($this->allowInsecureTls) {
+                $request = $request->withOptions(['verify' => false]);
+            } elseif ($caBundle !== null) {
                 $request = $request->withOptions(['verify' => $caBundle]);
             }
 
@@ -140,7 +165,7 @@ class NewsContentExtractor
                 throw $exception;
             }
 
-            $response = $this->nativeTlsFetcher->fetch($url, $accept, $userAgent);
+            $response = $this->nativeTlsFetcher->fetch($url, $accept, $userAgent, allowInsecureTls: $this->allowInsecureTls);
         }
 
         if (! $response->successful()) {

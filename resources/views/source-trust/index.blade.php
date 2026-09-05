@@ -25,6 +25,8 @@
                 <input type="url" name="feed_url" value="{{ old('feed_url') }}" required placeholder="https://site.com/haberler" class="mt-1 w-full rounded-xl border border-cyan-400/30 bg-slate-900 px-3 py-2.5">
             </label>
             <input type="hidden" name="feed_format" value="auto">
+            <input type="hidden" name="allow_insecure_tls" value="0">
+            <label class="flex items-end gap-2 pb-3 text-sm"><input type="checkbox" name="allow_insecure_tls" value="1" @checked(old('allow_insecure_tls'))> Sertifika doğrulaması olmadan al</label>
             <label>
                 Tür
                 <select name="source_type" class="mt-1 w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-2.5">
@@ -89,6 +91,8 @@
                                         Haber sitesi veya akış bağlantısı
                                         <input type="url" name="feed_url" value="{{ $source->feed_url }}" required maxlength="2048" class="mt-1 w-full rounded-lg border border-white/10 bg-slate-900 px-3 py-2.5 font-normal">
                                     </label>
+                                    <input type="hidden" name="allow_insecure_tls" value="0">
+                                    <label class="text-sm font-bold text-slate-300 sm:col-span-2"><input type="checkbox" name="allow_insecure_tls" value="1" @checked($source->allow_insecure_tls)> Sertifika doğrulaması olmadan al</label>
                                     <label class="text-sm font-bold text-slate-300 sm:col-span-2">
                                         Not
                                         <input name="notes" value="{{ $source->notes }}" maxlength="5000" class="mt-1 w-full rounded-lg border border-white/10 bg-slate-900 px-3 py-2.5 font-normal">

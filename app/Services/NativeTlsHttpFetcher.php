@@ -14,7 +14,7 @@ class NativeTlsHttpFetcher
 
     public function __construct(private readonly ExternalUrlGuard $urlGuard) {}
 
-    public function fetch(string $url, string $accept, string $userAgent, int $maxBodyBytes = self::MAX_BODY_BYTES): Response
+    public function fetch(string $url, string $accept, string $userAgent, int $maxBodyBytes = self::MAX_BODY_BYTES, bool $allowInsecureTls = false): Response
     {
         $curl = $this->curlPath();
 
@@ -109,6 +109,10 @@ class NativeTlsHttpFetcher
             if ($caBundle !== null) {
                 $command[] = '--cacert';
                 $command[] = $caBundle;
+            }
+
+            if ($allowInsecureTls) {
+                $command[] = '--insecure';
             }
 
             $command[] = $url;

@@ -15,7 +15,6 @@ use App\Models\PublishingTarget;
 use App\Models\User;
 use App\Services\AutomaticArticleVisualManager;
 use App\Services\GeneratedContentPublicationService;
-use App\VisualSourceType;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -27,11 +26,10 @@ class PixabayVisualFallbackTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_pixabay_supplies_a_featured_image_before_paid_ai_generation(): void
+    public function test_pixabay_is_not_used_for_news_articles(): void
     {
         Storage::fake('public');
         Http::preventStrayRequests();
-        $this->fakePixabay();
 
         $agency = Agency::factory()->create();
         $article = Article::factory()->for($agency)->create([
@@ -42,16 +40,8 @@ class PixabayVisualFallbackTest extends TestCase
 
         $visual = app(AutomaticArticleVisualManager::class)->ensure($article);
 
-        $this->assertNotNull($visual);
-        $this->assertSame(VisualSourceType::Archive, $visual->source_type);
-        $this->assertSame('licensed', $visual->copyright_status->value);
-        $this->assertSame('https://pixabay.com/photos/news-42/', $visual->source_url);
-        $this->assertTrue($visual->is_selected);
-        Storage::disk('public')->assertExists($visual->storage_path);
-        Http::assertSent(fn (Request $request): bool => str_starts_with($request->url(), 'https://93.184.216.34/api/')
-            && $request['key'] === 'pixabay-key'
-            && $request['orientation'] === 'horizontal'
-            && $request['safesearch'] === 'true');
+        $this->assertNull($visual);
+        Http::assertNothingSent();
     }
 
     public function test_generated_horoscope_reaches_publication_center_with_pixabay_media(): void
@@ -87,11 +77,10 @@ class PixabayVisualFallbackTest extends TestCase
         Queue::assertPushed(PublishArticleToWordPress::class);
     }
 
-    public function test_linked_campaign_article_gets_pixabay_image_when_content_is_approved(): void
+    public function test_linked_campaign_article_does_not_use_pixabay_when_content_is_approved(): void
     {
         Storage::fake('public');
         Http::preventStrayRequests();
-        $this->fakePixabay();
 
         $agency = Agency::factory()->create();
         $owner = User::factory()->agencyOwner()->for($agency)->create();
@@ -115,9 +104,8 @@ class PixabayVisualFallbackTest extends TestCase
             ->assertRedirect();
 
         $this->assertSame(CampaignContentStatus::Approved, $content->fresh()->status);
-        $this->assertSame(VisualSourceType::Archive, $article->fresh()->selectedVisualAsset?->source_type);
-        Http::assertSent(fn (Request $request): bool => str_starts_with($request->url(), 'https://93.184.216.34/api/')
-            && str_contains((string) $request['q'], 'kampanya'));
+        $this->assertNull($article->fresh()->selectedVisualAsset);
+        Http::assertNothingSent();
     }
 
     private function createPixabayIntegration(Agency $agency): ApiIntegration

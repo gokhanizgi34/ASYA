@@ -48,7 +48,9 @@ class AutomaticArticleVisualManager
         }
 
         try {
-            $pixabayVisual = $this->importPixabayImage($article);
+            $pixabayVisual = $this->pixabayAllowed($article)
+                ? $this->importPixabayImage($article)
+                : null;
 
             if ($pixabayVisual) {
                 return $pixabayVisual;
@@ -93,6 +95,11 @@ class AutomaticArticleVisualManager
             sourceUrl: null,
             generationPrompt: null,
         );
+    }
+
+    private function pixabayAllowed(Article $article): bool
+    {
+        return in_array(data_get($article->editorial_metadata, 'content_type'), ['horoscope', 'recipe', 'special_day'], true);
     }
 
     private function importSourceImage(Article $article, string $sourceImageUrl): VisualAsset

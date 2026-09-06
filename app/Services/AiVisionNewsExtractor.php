@@ -20,19 +20,7 @@ class AiVisionNewsExtractor
     /** @return array<int, array<string, mixed>> */
     public function extract(int $agencyId, string $imagePath): array
     {
-        $dataUrl = $this->imageDataUrl($imagePath);
-
-        foreach ($this->registry->forAgency($agencyId) as $integration) {
-            try {
-                $records = $this->decodeRecords($this->request($integration, $this->listingPrompt(), $dataUrl));
-                if ($records !== []) {
-                    return $records;
-                }
-            } catch (Throwable) {
-            }
-        }
-
-        throw new RuntimeException('Görselde okunabilir haber bilgisi bulunamadı.');
+        throw new RuntimeException('Görsel AI kullanımı kapalıdır; haber görselleri kaynak siteden veya Pixabay arşivinden alınır.');
     }
 
     /** @return array{title:string,summary:string,body:string,focus_keyword:string,keywords:array<int,string>,hashtags:array<int,string>,category:string,ai_provider:string} */

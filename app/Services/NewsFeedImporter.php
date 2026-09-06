@@ -47,7 +47,7 @@ class NewsFeedImporter
         $enabledInsecureTls = false;
 
         try {
-            $extraction = $this->extractor->extract((string) $source->feed_url, $source->agency_id, $source->allow_insecure_tls, $lookbackDays);
+            $extraction = $this->extractor->extract((string) $source->feed_url, $source->agency_id, (bool) $source->allow_insecure_tls, $lookbackDays);
         } catch (Throwable $exception) {
             if ($source->allow_insecure_tls || ! $this->isTlsCertificateFailure($exception)) {
                 throw $exception;

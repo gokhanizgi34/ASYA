@@ -37,7 +37,7 @@ class AutomaticArticlePublisher
 
         $rawNewsItem = ContentBatchItem::query()
             ->where('article_id', $article->id)
-            ->with('rawNewsItem')
+            ->with('rawNewsItem.newsSource')
             ->first()
             ?->rawNewsItem;
 
@@ -81,10 +81,15 @@ class AutomaticArticlePublisher
 
         $sourceImageUrl = $rawNewsItem->original_image_url;
 
-        $visual = $this->visualManager->ensure($article, $sourceImageUrl, $rawNewsItem->source_url);
+        $visual = $this->visualManager->ensure(
+            $article,
+            $sourceImageUrl,
+            $rawNewsItem->source_url,
+            (bool) $rawNewsItem->newsSource?->allow_insecure_tls,
+        );
 
         if ($visual === null) {
-            throw new RuntimeException('Haber yayınlanamadı: kaynak görseli, ekran görüntüsü, yedek görsel veya ajans logosu alınamadı.');
+            throw new RuntimeException('Haber yayınlanamadı: kaynakta veya Pixabay sonuçlarında içerikle uyumlu bir görsel bulunamadı.');
         }
 
         $article->forceFill([

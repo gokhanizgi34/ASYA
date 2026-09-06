@@ -354,7 +354,7 @@ XML;
             'https://93.184.216.34/haberler' => Http::response('<html><body><h2><a href="/haber/lazy">Lazy görselli haber başlığı</a></h2></body></html>', 200, ['Content-Type' => 'text/html']),
             'https://93.184.216.34/haberler/feed/' => Http::response('', 404),
             'https://93.184.216.34/wp-json/wp/v2/posts?per_page=20&_embed=1' => Http::response('', 404),
-            'https://93.184.216.34/haber/lazy' => Http::response('<html><head><meta property="og:title" content="Lazy görselli haber başlığı"></head><body><article><h1>Lazy görselli haber başlığı</h1><img data-src="/images/lazy-cover.webp"><p>Bu haber ayrıntısı, lazy-load görselinin kaynak haberden alınmasını doğrulamak için yeterince uzun bir metin içerir.</p><p>İkinci paragraf haber gövdesinin geçerli uzunluğa ulaşmasını sağlar.</p></article></body></html>', 200, ['Content-Type' => 'text/html']),
+            'https://93.184.216.34/haber/lazy' => Http::response('<html><head><meta property="og:title" content="Lazy görselli haber başlığı"></head><body><article><h1>Lazy görselli haber başlığı</h1><img srcset="/images/lazy-small.webp 640w, /images/lazy-cover.webp 1600w"><p>Bu haber ayrıntısı, lazy-load görselinin kaynak haberden alınmasını doğrulamak için yeterince uzun bir metin içerir.</p><p>İkinci paragraf haber gövdesinin geçerli uzunluğa ulaşmasını sağlar.</p></article></body></html>', 200, ['Content-Type' => 'text/html']),
         ]);
         $agency = Agency::factory()->create();
         $editor = User::factory()->editor()->for($agency)->create();
@@ -407,7 +407,7 @@ XML;
             '@context' => 'https://schema.org',
             '@type' => 'NewsArticle',
             'headline' => 'JSON LD görselli belediye haber başlığı',
-            'image' => ['url' => '/images/json-ld-cover.jpg'],
+            'image' => [['url' => '/images/json-ld-cover.jpg']],
             'articleBody' => str_repeat('Belediye ekipleri proje alanındaki çalışmaları planlanan program kapsamında sürdürüyor. ', 5),
         ], JSON_THROW_ON_ERROR);
         Http::fake([

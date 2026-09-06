@@ -548,17 +548,15 @@ class NewsContentExtractor
             }
 
             $image = $this->firstNode($xpath, [
-                './/img[@src][1]',
-                './/img[@data-src][1]',
-                './/img[@data-lazy-src][1]',
-                './ancestor::*[self::article or contains(translate(@class, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "haber") or contains(translate(@class, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "news") or contains(translate(@class, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "post")][1]//img[@src or @data-src or @data-lazy-src][1]',
+                './/img[@src or @data-src or @data-lazy-src or @data-original or @srcset or @data-srcset][1]',
+                './ancestor::*[self::article or contains(translate(@class, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "haber") or contains(translate(@class, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "news") or contains(translate(@class, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "post")][1]//img[@src or @data-src or @data-lazy-src or @data-original or @srcset or @data-srcset][1]',
             ], $link);
 
             if (! $image instanceof DOMElement) {
                 continue;
             }
 
-            $source = $image->getAttribute('src') ?: $image->getAttribute('data-src') ?: $image->getAttribute('data-lazy-src');
+            $source = $this->imageSource($image);
             $imageUrl = $this->nullableUrl($baseUrl, $source);
 
             if ($imageUrl !== null) {
@@ -606,16 +604,50 @@ class NewsContentExtractor
         $image = $this->meta($xpath, 'property', 'og:image')
             ?: $this->meta($xpath, 'name', 'twitter:image')
             ?: $this->jsonLdArticleImage($xpath)
-            ?: $this->attribute($xpath, '//article[1]//img[@src][1]', 'src')
-            ?: $this->attribute($xpath, '//article[1]//img[@data-src][1]', 'data-src')
-            ?: $this->attribute($xpath, '//article[1]//img[@data-lazy-src][1]', 'data-lazy-src')
-            ?: $this->attribute($xpath, '//main[1]//img[@src][1]', 'src')
-            ?: $this->attribute($xpath, '//main[1]//img[@data-src][1]', 'data-src');
+            ?: $this->domArticleImage($xpath);
         $date = $this->meta($xpath, 'property', 'article:published_time')
             ?: $this->meta($xpath, 'name', 'date')
             ?: $this->attribute($xpath, '//time[@datetime][1]', 'datetime');
 
         return $this->item($url, $title, $body, $url, $this->nullableUrl($url, $image), $date);
+    }
+
+    private function domArticleImage(DOMXPath $xpath): string
+    {
+        $image = $this->firstNode($xpath, [
+            '//article[1]//img[@src or @data-src or @data-lazy-src or @data-original or @srcset or @data-srcset][1]',
+            '//main[1]//img[@src or @data-src or @data-lazy-src or @data-original or @srcset or @data-srcset][1]',
+        ]);
+
+        return $image instanceof DOMElement ? $this->imageSource($image) : '';
+    }
+
+    private function imageSource(DOMElement $image): string
+    {
+        foreach (['src', 'data-src', 'data-lazy-src', 'data-original'] as $attribute) {
+            $value = trim($image->getAttribute($attribute));
+
+            if ($value !== '' && ! str_starts_with($value, 'data:')) {
+                return $value;
+            }
+        }
+
+        foreach (['srcset', 'data-srcset'] as $attribute) {
+            $srcset = trim($image->getAttribute($attribute));
+
+            if ($srcset === '') {
+                continue;
+            }
+
+            $candidates = array_values(array_filter(array_map('trim', explode(',', $srcset))));
+            $candidate = end($candidates);
+
+            if (is_string($candidate) && $candidate !== '') {
+                return (string) Str::of($candidate)->before(' ');
+            }
+        }
+
+        return '';
     }
 
     private function xpath(string $html): ?DOMXPath
@@ -718,12 +750,38 @@ class NewsContentExtractor
                     continue;
                 }
 
-                $image = $record['image'] ?? null;
-                $image = is_array($image) ? ($image['url'] ?? $image[0] ?? null) : $image;
+                $image = $this->jsonLdImageUrl($record['image'] ?? null);
 
-                if (is_string($image) && $image !== '') {
+                if ($image !== '') {
                     return $image;
                 }
+            }
+        }
+
+        return '';
+    }
+
+    private function jsonLdImageUrl(mixed $image): string
+    {
+        if (is_string($image)) {
+            return trim($image);
+        }
+
+        if (! is_array($image)) {
+            return '';
+        }
+
+        foreach (['url', 'contentUrl', '@id'] as $key) {
+            if (is_string($image[$key] ?? null) && trim($image[$key]) !== '') {
+                return trim($image[$key]);
+            }
+        }
+
+        foreach ($image as $candidate) {
+            $url = $this->jsonLdImageUrl($candidate);
+
+            if ($url !== '') {
+                return $url;
             }
         }
 

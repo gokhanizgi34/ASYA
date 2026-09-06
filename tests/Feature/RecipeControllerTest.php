@@ -86,6 +86,15 @@ class RecipeControllerTest extends TestCase
                     ['text' => "\nBitti"],
                 ]]]],
             ]),
+            'https://93.184.216.34/api/*' => Http::response(['hits' => [[
+                'tags' => 'food, meal, cooking, kitchen',
+                'pageURL' => 'https://pixabay.com/photos/food-42/',
+                'largeImageURL' => 'https://93.184.216.34/images/food.png',
+                'imageWidth' => 1920,
+                'imageHeight' => 1080,
+                'likes' => 80,
+            ]]]),
+            'https://93.184.216.34/images/food.png' => Http::response((string) base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='), 200, ['Content-Type' => 'image/png']),
         ]);
         $agency = Agency::factory()->create(['recipe_daily_quota' => 4]);
         $owner = User::factory()->agencyOwner()->for($agency)->create();
@@ -96,6 +105,14 @@ class RecipeControllerTest extends TestCase
             'auth_type' => IntegrationAuthType::ApiKeyHeader,
             'credential' => 'recipe-key',
             'is_active' => true,
+        ]);
+        ApiIntegration::factory()->for($agency)->create([
+            'provider' => IntegrationProvider::Pixabay,
+            'base_url' => 'https://93.184.216.34/api/',
+            'credential' => 'pixabay-key',
+            'visual_enabled' => true,
+            'is_active' => true,
+            'priority' => 999,
         ]);
         PublishingTarget::factory()->for($agency)->create(['is_active' => true]);
         Queue::fake([PublishArticleToWordPress::class]);
@@ -115,6 +132,6 @@ class RecipeControllerTest extends TestCase
             && data_get($request->data(), 'generationConfig.maxOutputTokens') === 2400);
 
         $this->actingAs($owner)->post(route('recipes.generate'))->assertRedirect()->assertSessionHasErrors('recipe_generation');
-        Http::assertSentCount(1);
+        $this->assertCount(1, Http::recorded(fn (Request $request): bool => str_contains($request->url(), 'gemini-test:generateContent')));
     }
 }

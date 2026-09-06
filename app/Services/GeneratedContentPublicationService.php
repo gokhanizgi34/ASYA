@@ -14,6 +14,7 @@ use App\SourceTrustStatus;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use RuntimeException;
 
 class GeneratedContentPublicationService
 {
@@ -79,17 +80,32 @@ class GeneratedContentPublicationService
             return $article;
         }
 
+        $targets = PublishingTarget::query()
+            ->where('agency_id', $agencyId)
+            ->where('is_active', true)
+            ->orderBy('id')
+            ->get();
+
+        if ($targets->isEmpty()) {
+            return $article;
+        }
+
         if (($content['uploaded_image'] ?? null) instanceof UploadedFile) {
             $this->visualManager->importUploadedImage($article, $content['uploaded_image']);
         }
 
         $visual = $this->visualManager->ensure($article);
 
-        if ($visual === null && in_array($content['source_type'], ['news', 'topic_ai'], true)) {
-            throw new RuntimeException('Haber yayınlanamadı: görsel alınamadı. Kaynak görseli, ekran görüntüsü, yedek görsel ve ajans logosu denendi.');
+        if ($visual === null) {
+            $article->forceFill([
+                'status' => ArticleStatus::Failed,
+                'failure_message' => 'Görsel bekliyor: kaynakta veya Pixabay sonuçlarında içerikle uyumlu bir görsel bulunamadı.',
+            ])->save();
+
+            throw new RuntimeException('İçerik yayınlanmadı: haberle uyumlu bir kapak görseli bulunamadı. Kayıt görsel bekliyor durumuna alındı.');
         }
 
-        PublishingTarget::query()->where('agency_id', $agencyId)->where('is_active', true)->orderBy('id')->each(function (PublishingTarget $target) use ($article, $creator): void {
+        $targets->each(function (PublishingTarget $target) use ($article, $creator): void {
             $publication = Publication::query()->where('article_id', $article->id)->where('publishing_target_id', $target->id)->first();
             if (! $publication) {
                 $publication = DB::transaction(fn (): Publication => $this->publicationCreator->create([

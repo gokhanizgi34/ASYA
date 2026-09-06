@@ -6,6 +6,7 @@ use App\IntegrationProvider;
 use App\Models\ApiIntegration;
 use App\Models\Publication;
 use App\PublicationStatus;
+use App\Services\NewsDuplicateDetector;
 use App\Services\NotificationCenter;
 use App\Services\WordPressPublisher;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
@@ -34,7 +35,7 @@ class PublishArticleToWordPress implements ShouldBeUnique, ShouldQueue
         return (string) $this->publicationId;
     }
 
-    public function handle(WordPressPublisher $publisher, ?NotificationCenter $notifications = null): void
+    public function handle(WordPressPublisher $publisher, ?NotificationCenter $notifications = null, ?NewsDuplicateDetector $duplicateDetector = null): void
     {
         $publication = DB::transaction(function (): ?Publication {
             $locked = Publication::query()->with(['publishingTarget', 'article'])->lockForUpdate()->find($this->publicationId);
@@ -58,6 +59,28 @@ class PublishArticleToWordPress implements ShouldBeUnique, ShouldQueue
         }
 
         try {
+            $duplicateDetector ??= app(NewsDuplicateDetector::class);
+            $hasPublishedDuplicate = Publication::query()
+                ->with('article:id,title')
+                ->where('agency_id', $publication->agency_id)
+                ->where('status', PublicationStatus::Published)
+                ->whereKeyNot($publication->id)
+                ->latest('published_at')
+                ->limit(1000)
+                ->get()
+                ->contains(fn (Publication $candidate): bool => filled($candidate->article?->title)
+                    && $duplicateDetector->titlesAreSimilar($publication->article->title, $candidate->article->title));
+
+            if ($hasPublishedDuplicate) {
+                $publication->forceFill([
+                    'status' => PublicationStatus::Failed,
+                    'failure_message' => '[KALICI] Aynı veya çok benzer haber daha önce yayımlandı.',
+                    'completed_at' => now(),
+                ])->save();
+
+                return;
+            }
+
             $result = $publisher->publish($publication);
             $publication->forceFill([
                 'status' => PublicationStatus::Published,

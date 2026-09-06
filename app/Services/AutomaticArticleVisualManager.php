@@ -24,12 +24,15 @@ class AutomaticArticleVisualManager
         private readonly AiIntegrationRegistry $registry,
         private readonly ExternalUrlGuard $urlGuard,
         private readonly NativeTlsHttpFetcher $nativeTlsHttpFetcher,
-        private readonly RenderedPageCapture $pageCapture,
         private readonly SystemSettings $settings,
     ) {}
 
-    public function ensure(Article $article, ?string $sourceImageUrl = null, ?string $sourcePageUrl = null): ?VisualAsset
-    {
+    public function ensure(
+        Article $article,
+        ?string $sourceImageUrl = null,
+        ?string $sourcePageUrl = null,
+        bool $allowInsecureTls = false,
+    ): ?VisualAsset {
         $selected = $article->selectedVisualAsset()->where('status', VisualAssetStatus::Approved)->first();
 
         if ($selected && filled($selected->storage_path) && Storage::disk($selected->storage_disk)->exists($selected->storage_path)) {
@@ -38,35 +41,18 @@ class AutomaticArticleVisualManager
 
         if (filled($sourceImageUrl)) {
             try {
-                return $this->importSourceImage($article, $sourceImageUrl);
+                return $this->importSourceImage($article, $sourceImageUrl, $sourcePageUrl, $allowInsecureTls);
             } catch (Throwable $exception) {
                 Log::warning('Kaynak haber görseli indirilemedi.', [
                     'article_id' => $article->id,
                     'source_image_url' => $sourceImageUrl,
                     'message' => $exception->getMessage(),
                 ]);
-
-            }
-        }
-
-        if (filled($sourcePageUrl)) {
-            try {
-                $screenshot = $this->captureSourcePage($article, $sourcePageUrl);
-
-                if ($screenshot) {
-                    return $screenshot;
-                }
-            } catch (Throwable $exception) {
-                Log::warning('Kaynak sayfanın ekran görüntüsü alınamadı.', [
-                    'article_id' => $article->id,
-                    'source_page_url' => $sourcePageUrl,
-                    'message' => $exception->getMessage(),
-                ]);
             }
         }
 
         try {
-            $pixabayVisual = $this->pixabayAllowed($article)
+            $pixabayVisual = $this->pixabayAllowed($article, $sourcePageUrl)
                 ? $this->importPixabayImage($article)
                 : null;
 
@@ -74,26 +60,28 @@ class AutomaticArticleVisualManager
                 return $pixabayVisual;
             }
         } catch (Throwable $exception) {
-            Log::warning('Pixabay görseli alınamadı; sonraki görsel yöntemi deneniyor.', [
+            Log::warning('Pixabay uygun bir görsel sağlayamadı.', [
                 'article_id' => $article->id,
                 'message' => $exception->getMessage(),
             ]);
         }
 
-        if (! $this->settings->get('visual.ai_generation_enabled', $article->agency_id)) {
-            return $this->importAgencyLogo($article);
+        if ($this->settings->get('visual.ai_generation_enabled', $article->agency_id)) {
+            try {
+                return $this->generateImage($article);
+            } catch (Throwable $exception) {
+                Log::warning('AI görseli üretilemedi.', [
+                    'article_id' => $article->id,
+                    'message' => $exception->getMessage(),
+                ]);
+            }
         }
 
-        try {
-            return $this->generateImage($article);
-        } catch (Throwable $exception) {
-            Log::warning('AI görseli üretilemedi; ajans logosu yayın görseli olarak kullanılacak.', [
-                'article_id' => $article->id,
-                'message' => $exception->getMessage(),
-            ]);
-
-            return $this->importAgencyLogo($article);
+        if (filled($sourcePageUrl) || $this->pixabayAllowed($article)) {
+            return null;
         }
+
+        return $this->importAgencyLogo($article);
     }
 
     public function importUploadedImage(Article $article, UploadedFile $image): VisualAsset
@@ -127,51 +115,46 @@ class AutomaticArticleVisualManager
         );
     }
 
-    private function captureSourcePage(Article $article, string $sourcePageUrl): ?VisualAsset
+    private function pixabayAllowed(Article $article, ?string $sourcePageUrl = null): bool
     {
-        $this->urlGuard->assertSafe($sourcePageUrl);
-        try {
-            $response = Http::accept('text/html')->withUserAgent('ASYA-News-Automation/1.0')->connectTimeout(10)->timeout(30)->get($sourcePageUrl);
-        } catch (ConnectionException $exception) {
-            $response = $this->nativeTlsHttpFetcher->fetch($sourcePageUrl, 'text/html', 'ASYA-News-Automation/1.0');
-        }
-        $response->throw();
-        $path = $this->pageCapture->capture($response->body());
+        $contentType = (string) data_get($article->editorial_metadata, 'content_type', '');
 
-        try {
-            return $this->storeImage(
-                article: $article,
-                bytes: (string) file_get_contents($path),
-                sourceType: VisualSourceType::Original,
-                copyrightStatus: CopyrightStatus::Unknown,
-                sourceUrl: $sourcePageUrl,
-                generationPrompt: null,
-            );
-        } finally {
-            $this->pageCapture->remove($path);
-        }
+        return filled($sourcePageUrl)
+            || filled($article->source_url)
+            || in_array($contentType, ['news', 'topic_ai', 'horoscope', 'recipe', 'special_day', 'campaign', 'column'], true);
     }
 
-    private function pixabayAllowed(Article $article): bool
-    {
-        return in_array(data_get($article->editorial_metadata, 'content_type'), ['horoscope', 'recipe', 'special_day'], true);
-    }
-
-    private function importSourceImage(Article $article, string $sourceImageUrl): VisualAsset
-    {
+    private function importSourceImage(
+        Article $article,
+        string $sourceImageUrl,
+        ?string $sourcePageUrl,
+        bool $allowInsecureTls,
+    ): VisualAsset {
         $this->urlGuard->assertSafe($sourceImageUrl);
+        $request = Http::accept('image/*')
+            ->withUserAgent('ASYA-News-Automation/1.0')
+            ->connectTimeout(10)
+            ->timeout(30);
+
+        if (filled($sourcePageUrl)) {
+            $this->urlGuard->assertSafe($sourcePageUrl);
+            $request = $request->withHeaders(['Referer' => $sourcePageUrl]);
+        }
+
         try {
-            $response = Http::accept('image/*')
-                ->withUserAgent('ASYA-News-Automation/1.0')
-                ->connectTimeout(10)
-                ->timeout(30)
-                ->get($sourceImageUrl);
+            $response = $request->get($sourceImageUrl);
         } catch (ConnectionException $exception) {
-            if (! str_contains($exception->getMessage(), 'cURL error 60')) {
+            if (! $allowInsecureTls && ! str_contains($exception->getMessage(), 'cURL error 60')) {
                 throw $exception;
             }
 
-            $response = $this->nativeTlsHttpFetcher->fetch($sourceImageUrl, 'image/*', 'ASYA-News-Automation/1.0', 20 * 1024 * 1024);
+            $response = $this->nativeTlsHttpFetcher->fetch(
+                $sourceImageUrl,
+                'image/*',
+                'ASYA-News-Automation/1.0',
+                20 * 1024 * 1024,
+                $allowInsecureTls,
+            );
         }
         $response->throw();
 
@@ -200,6 +183,7 @@ class AutomaticArticleVisualManager
             return null;
         }
 
+        $search = $this->pixabaySearch($article);
         $this->urlGuard->assertSafe($integration->base_url);
         $response = Http::acceptJson()
             ->withUserAgent('ASYA-News-Automation/1.0')
@@ -207,22 +191,19 @@ class AutomaticArticleVisualManager
             ->timeout(max(15, $integration->timeout_seconds))
             ->get($integration->base_url, [
                 'key' => (string) $integration->credential,
-                'q' => $this->pixabayQuery($article),
-                'lang' => 'tr',
+                'q' => $search['query'],
+                'lang' => $search['language'],
                 'image_type' => 'photo',
                 'orientation' => 'horizontal',
                 'safesearch' => 'true',
                 'order' => 'popular',
-                'per_page' => 20,
+                'per_page' => 50,
             ]);
         $response->throw();
 
-        $hit = collect($response->json('hits', []))
-            ->filter(fn (mixed $candidate): bool => is_array($candidate) && filled(data_get($candidate, 'largeImageURL', data_get($candidate, 'webformatURL'))))
-            ->sortByDesc(fn (array $candidate): int => (int) data_get($candidate, 'imageWidth', 0))
-            ->first();
+        $hit = $this->selectPixabayHit($article, (array) $response->json('hits', []));
 
-        if (! is_array($hit)) {
+        if ($hit === null) {
             return null;
         }
 
@@ -241,30 +222,92 @@ class AutomaticArticleVisualManager
             sourceType: VisualSourceType::Archive,
             copyrightStatus: CopyrightStatus::Licensed,
             sourceUrl: (string) data_get($hit, 'pageURL', $imageUrl),
-            generationPrompt: 'Pixabay araması: '.$this->pixabayQuery($article),
+            generationPrompt: 'Pixabay araması: '.$search['query'].' · etiketler: '.Str::limit((string) data_get($hit, 'tags', ''), 300, ''),
         );
     }
 
-    private function pixabayQuery(Article $article): string
+    /** @return array{query: string, language: string} */
+    private function pixabaySearch(Article $article): array
     {
-        $contentType = (string) data_get($article->editorial_metadata, 'content_type', '');
+        $contentType = (string) data_get($article->editorial_metadata, 'content_type', 'news');
         $category = (string) data_get($article->editorial_metadata, 'category', '');
-        $fallback = match ($contentType) {
-            'horoscope' => 'burç astroloji gökyüzü',
-            'special_day' => 'özel gün kutlama Türkiye',
-            'recipe' => 'Türk mutfağı yemek',
-            'column' => 'gazete köşe yazısı gündem',
-            'campaign' => 'kampanya tanıtım etkinlik',
-            default => $category,
+        $title = Str::of($article->title)->stripTags()->replaceMatches('/[^\pL\pN\s-]+/u', ' ')->squish()->toString();
+        $query = match ($contentType) {
+            'horoscope' => 'zodiac astrology horoscope constellation stars',
+            'recipe' => 'Türk mutfağı yemek tabak '.$title,
+            'special_day' => 'kutlama bayram etkinlik '.$title,
+            'campaign' => 'kampanya etkinlik tanıtım '.$title,
+            'column' => 'gazete gündem '.$title,
+            default => $title.' '.$category,
         };
-        $query = Str::of($article->title.' '.$fallback)
-            ->stripTags()
-            ->replaceMatches('/[^\\pL\\pN\\s-]+/u', ' ')
-            ->squish()
-            ->limit(100, '')
-            ->toString();
 
-        return $query !== '' ? $query : 'Türkiye haber';
+        return [
+            'query' => Str::limit(Str::squish($query), 100, ''),
+            'language' => $contentType === 'horoscope' ? 'en' : 'tr',
+        ];
+    }
+
+    /**
+     * @param  array<int, mixed>  $hits
+     * @return array<string, mixed>|null
+     */
+    private function selectPixabayHit(Article $article, array $hits): ?array
+    {
+        $contentType = (string) data_get($article->editorial_metadata, 'content_type', 'news');
+        $articleTerms = $this->pixabayTerms($article->title.' '.(string) data_get($article->editorial_metadata, 'category', ''));
+        $blockedTerms = ['animal', 'animals', 'wildlife', 'seal', 'sealion', 'fok', 'köpek', 'kedi', 'kuş', 'hayvan', 'zoo'];
+        $requiredTerms = match ($contentType) {
+            'horoscope' => ['zodiac', 'astrology', 'horoscope', 'constellation', 'stars', 'astroloji', 'burç'],
+            'recipe' => ['food', 'meal', 'dish', 'cuisine', 'cooking', 'kitchen', 'dessert', 'soup', 'salad', 'yemek', 'mutfak', 'tarif', 'tabak'],
+            'special_day' => ['celebration', 'holiday', 'festival', 'event', 'flag', 'kutlama', 'bayram', 'etkinlik'],
+            'campaign' => ['campaign', 'event', 'shopping', 'sale', 'promotion', 'kampanya', 'etkinlik'],
+            default => [],
+        };
+
+        return collect($hits)
+            ->filter(fn (mixed $hit): bool => is_array($hit) && filled(data_get($hit, 'largeImageURL', data_get($hit, 'webformatURL'))))
+            ->map(function (array $hit) use ($articleTerms, $blockedTerms, $requiredTerms, $contentType): ?array {
+                $tagTerms = $this->pixabayTerms((string) data_get($hit, 'tags', ''));
+                $overlap = count(array_intersect($articleTerms, $tagTerms));
+                $hasRequiredContext = $requiredTerms !== [] && array_intersect($requiredTerms, $tagTerms) !== [];
+                $hasBlockedContext = array_intersect($blockedTerms, $tagTerms) !== [];
+                $width = (int) data_get($hit, 'imageWidth', 0);
+                $height = (int) data_get($hit, 'imageHeight', 0);
+                $isLandscape = $height > 0 && ($width / $height) >= 1.15;
+                $isRelevant = match ($contentType) {
+                    'horoscope' => $hasRequiredContext,
+                    'recipe', 'special_day', 'campaign' => $hasRequiredContext || $overlap > 0,
+                    default => $overlap > 0,
+                };
+
+                if ($hasBlockedContext || ! $isLandscape || ! $isRelevant) {
+                    return null;
+                }
+
+                return [
+                    ...$hit,
+                    '_asya_score' => ($overlap * 1000)
+                        + ($hasRequiredContext ? 500 : 0)
+                        + min(300, (int) data_get($hit, 'likes', 0))
+                        + min(200, (int) floor($width / 20)),
+                ];
+            })
+            ->filter()
+            ->sortByDesc('_asya_score')
+            ->first();
+    }
+
+    /** @return array<int, string> */
+    private function pixabayTerms(string $value): array
+    {
+        $stopWords = ['bir', 'ile', 'icin', 'gibi', 'olan', 'olarak', 'son', 'the', 'and', 'for', 'turkiye', 'turkey', 'haber', 'news', 'gunluk', 'yorumlari', 'tarifi'];
+        $normalized = Str::of($value)->ascii()->lower()->replaceMatches('/[^a-z0-9]+/', ' ')->squish()->toString();
+
+        return collect(explode(' ', $normalized))
+            ->filter(fn (string $term): bool => mb_strlen($term) >= 3 && ! in_array($term, $stopWords, true))
+            ->unique()
+            ->values()
+            ->all();
     }
 
     private function generateImage(Article $article): VisualAsset

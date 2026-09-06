@@ -26,10 +26,24 @@ class PixabayVisualFallbackTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_pixabay_is_not_used_for_news_articles(): void
+    public function test_pixabay_uses_relevant_image_for_news_without_source_visual(): void
     {
         Storage::fake('public');
         Http::preventStrayRequests();
+        Http::fake([
+            'https://93.184.216.34/api/*' => Http::response([
+                'hits' => [[
+                    'id' => 42,
+                    'tags' => 'pendik, sahil, etkinlik',
+                    'pageURL' => 'https://pixabay.com/photos/pendik-42/',
+                    'largeImageURL' => 'https://93.184.216.34/images/pixabay.png',
+                    'imageWidth' => 1920,
+                    'imageHeight' => 1080,
+                    'likes' => 80,
+                ]],
+            ]),
+            'https://93.184.216.34/images/pixabay.png' => Http::response($this->png(), 200, ['Content-Type' => 'image/png']),
+        ]);
 
         $agency = Agency::factory()->create();
         $article = Article::factory()->for($agency)->create([
@@ -40,8 +54,36 @@ class PixabayVisualFallbackTest extends TestCase
 
         $visual = app(AutomaticArticleVisualManager::class)->ensure($article);
 
+        $this->assertNotNull($visual);
+        $this->assertSame('archive', $visual->source_type->value);
+        Storage::disk('public')->assertExists($visual->storage_path);
+    }
+
+    public function test_pixabay_rejects_unrelated_animal_for_horoscope(): void
+    {
+        Storage::fake('public');
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://93.184.216.34/api/*' => Http::response([
+                'hits' => [[
+                    'tags' => 'seal, animal, wildlife',
+                    'largeImageURL' => 'https://93.184.216.34/images/seal.jpg',
+                    'imageWidth' => 1920,
+                    'imageHeight' => 1080,
+                ]],
+            ]),
+        ]);
+        $agency = Agency::factory()->create();
+        $article = Article::factory()->for($agency)->create([
+            'title' => 'Günlük burç yorumları',
+            'editorial_metadata' => ['content_type' => 'horoscope', 'category' => 'Burçlar'],
+        ]);
+        $this->createPixabayIntegration($agency);
+
+        $visual = app(AutomaticArticleVisualManager::class)->ensure($article);
+
         $this->assertNull($visual);
-        Http::assertNothingSent();
+        Http::assertSentCount(1);
     }
 
     public function test_generated_horoscope_reaches_publication_center_with_pixabay_media(): void
@@ -73,14 +115,26 @@ class PixabayVisualFallbackTest extends TestCase
         $this->assertNotNull(data_get($publication->payload, 'media.path'));
         Storage::disk('public')->assertExists((string) data_get($publication->payload, 'media.path'));
         Http::assertSent(fn (Request $request): bool => str_starts_with($request->url(), 'https://93.184.216.34/api/')
-            && str_contains((string) $request['q'], 'burç'));
+            && str_contains((string) $request['q'], 'zodiac'));
         Queue::assertPushed(PublishArticleToWordPress::class);
     }
 
-    public function test_linked_campaign_article_does_not_use_pixabay_when_content_is_approved(): void
+    public function test_linked_campaign_article_uses_relevant_pixabay_visual_when_approved(): void
     {
         Storage::fake('public');
         Http::preventStrayRequests();
+        Http::fake([
+            'https://93.184.216.34/api/*' => Http::response([
+                'hits' => [[
+                    'tags' => 'sonbahar, kampanya, etkinlik',
+                    'pageURL' => 'https://pixabay.com/photos/campaign-42/',
+                    'largeImageURL' => 'https://93.184.216.34/images/pixabay.png',
+                    'imageWidth' => 1920,
+                    'imageHeight' => 1080,
+                ]],
+            ]),
+            'https://93.184.216.34/images/pixabay.png' => Http::response($this->png(), 200, ['Content-Type' => 'image/png']),
+        ]);
 
         $agency = Agency::factory()->create();
         $owner = User::factory()->agencyOwner()->for($agency)->create();
@@ -104,8 +158,8 @@ class PixabayVisualFallbackTest extends TestCase
             ->assertRedirect();
 
         $this->assertSame(CampaignContentStatus::Approved, $content->fresh()->status);
-        $this->assertNull($article->fresh()->selectedVisualAsset);
-        Http::assertNothingSent();
+        $this->assertNotNull($article->fresh()->selectedVisualAsset);
+        Http::assertSentCount(2);
     }
 
     private function createPixabayIntegration(Agency $agency): ApiIntegration
@@ -126,9 +180,12 @@ class PixabayVisualFallbackTest extends TestCase
             'https://93.184.216.34/api/*' => Http::response([
                 'hits' => [[
                     'id' => 42,
-                    'pageURL' => 'https://pixabay.com/photos/news-42/',
+                    'tags' => 'zodiac, astrology, stars',
+                    'pageURL' => 'https://pixabay.com/photos/zodiac-42/',
                     'largeImageURL' => 'https://93.184.216.34/images/pixabay.png',
                     'imageWidth' => 1920,
+                    'imageHeight' => 1080,
+                    'likes' => 80,
                 ]],
             ]),
             'https://93.184.216.34/images/pixabay.png' => Http::response($this->png(), 200, ['Content-Type' => 'image/png']),

@@ -17,15 +17,20 @@ use App\Models\SystemSetting;
 use App\Models\User;
 use App\Services\AutomaticArticlePublisher;
 use App\Services\AutomaticArticleVisualManager;
+use App\Services\NativeTlsHttpFetcher;
 use App\SettingValueType;
 use App\SourceTrustStatus;
 use App\VisualAssetStatus;
 use App\VisualSourceType;
+use GuzzleHttp\Psr7\Response as PsrResponse;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
+use Illuminate\Http\Client\Response as ClientResponse;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use Mockery\MockInterface;
 use Tests\TestCase;
 
 class AutomaticArticlePublisherTest extends TestCase
@@ -127,11 +132,39 @@ class AutomaticArticlePublisherTest extends TestCase
         Http::preventStrayRequests();
         Http::fake(['https://93.184.216.34/images/source.png' => Http::response($this->png(), 200, ['Content-Type' => 'image/png'])]);
         $article = Article::factory()->create();
-        $visual = app(AutomaticArticleVisualManager::class)->ensure($article, 'https://93.184.216.34/images/source.png');
+        $sourcePageUrl = 'https://93.184.216.34/haber/source';
+        $visual = app(AutomaticArticleVisualManager::class)->ensure($article, 'https://93.184.216.34/images/source.png', $sourcePageUrl);
         $this->assertSame(VisualSourceType::Original, $visual->source_type);
         $this->assertTrue($visual->is_selected);
         Storage::disk('public')->assertExists($visual->storage_path);
-        Http::assertSentCount(1);
+        Http::assertSent(fn (Request $request): bool => data_get($request->header('Referer'), '0') === $sourcePageUrl);
+    }
+
+    public function test_source_specific_tls_permission_is_used_for_image_download(): void
+    {
+        Storage::fake('public');
+        Http::preventStrayRequests();
+        Http::fake(fn () => throw new ConnectionException('cURL error 60: certificate verify failed'));
+        $this->mock(NativeTlsHttpFetcher::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('fetch')
+                ->once()
+                ->withArgs(fn (string $url, string $accept, string $userAgent, int $maxBytes, bool $allowInsecureTls): bool => $url === 'https://93.184.216.34/images/tls.png'
+                    && $accept === 'image/*'
+                    && $maxBytes === 20 * 1024 * 1024
+                    && $allowInsecureTls)
+                ->andReturn(new ClientResponse(new PsrResponse(200, ['Content-Type' => 'image/png'], $this->png())));
+        });
+        $article = Article::factory()->create();
+
+        $visual = app(AutomaticArticleVisualManager::class)->ensure(
+            $article,
+            'https://93.184.216.34/images/tls.png',
+            'https://93.184.216.34/haber/tls',
+            true,
+        );
+
+        $this->assertSame(VisualSourceType::Original, $visual->source_type);
+        Storage::disk('public')->assertExists($visual->storage_path);
     }
 
     public function test_failed_source_image_download_continues_without_ai_fallback(): void

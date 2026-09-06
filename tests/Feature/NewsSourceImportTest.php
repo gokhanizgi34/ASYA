@@ -382,6 +382,49 @@ XML;
         $this->assertNull(RawNewsItem::query()->firstOrFail()->original_image_url);
     }
 
+    public function test_html_crawler_uses_listing_card_image_when_article_has_no_image(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://93.184.216.34/haberler' => Http::response('<html><body><article class="haber-karti"><a href="/haber/kart-gorseli"><img data-src="/images/kart-cover.webp"><h2>Kart görselli belediye haber başlığı</h2></a></article></body></html>', 200, ['Content-Type' => 'text/html']),
+            'https://93.184.216.34/haberler/feed/' => Http::response('', 404),
+            'https://93.184.216.34/wp-json/wp/v2/posts?per_page=20&_embed=1' => Http::response('', 404),
+            'https://93.184.216.34/haber/kart-gorseli' => Http::response('<html><body><article><h1>Kart görselli belediye haber başlığı</h1><p>Belediye tarafından yürütülen çalışmanın ilk aşaması tamamlandı ve uygulama sahasında yeni dönem başladı.</p><p>Ekipler program kapsamında belirlenen noktalarda çalışmalarını planlı biçimde sürdürüyor.</p><p>Çalışmanın ayrıntıları ve uygulama takvimi vatandaşlarla paylaşıldı.</p></article></body></html>', 200, ['Content-Type' => 'text/html']),
+        ]);
+        $agency = Agency::factory()->create();
+        $editor = User::factory()->editor()->for($agency)->create();
+        $source = NewsSource::factory()->for($agency)->create(['feed_url' => 'https://93.184.216.34/haberler']);
+
+        $this->actingAs($editor)->post(route('source-trust.sources.import', $source))->assertRedirect()->assertSessionHas('success');
+
+        $this->assertSame('https://93.184.216.34/images/kart-cover.webp', RawNewsItem::query()->firstOrFail()->original_image_url);
+    }
+
+    public function test_html_crawler_reads_article_image_from_json_ld(): void
+    {
+        Http::preventStrayRequests();
+        $jsonLd = json_encode([
+            '@context' => 'https://schema.org',
+            '@type' => 'NewsArticle',
+            'headline' => 'JSON LD görselli belediye haber başlığı',
+            'image' => ['url' => '/images/json-ld-cover.jpg'],
+            'articleBody' => str_repeat('Belediye ekipleri proje alanındaki çalışmaları planlanan program kapsamında sürdürüyor. ', 5),
+        ], JSON_THROW_ON_ERROR);
+        Http::fake([
+            'https://93.184.216.34/haberler' => Http::response('<html><body><h2><a href="/haber/json-ld">JSON LD görselli belediye haber başlığı</a></h2></body></html>', 200, ['Content-Type' => 'text/html']),
+            'https://93.184.216.34/haberler/feed/' => Http::response('', 404),
+            'https://93.184.216.34/wp-json/wp/v2/posts?per_page=20&_embed=1' => Http::response('', 404),
+            'https://93.184.216.34/haber/json-ld' => Http::response('<html><head><script type="application/ld+json">'.$jsonLd.'</script></head><body><h1>JSON LD görselli belediye haber başlığı</h1></body></html>', 200, ['Content-Type' => 'text/html']),
+        ]);
+        $agency = Agency::factory()->create();
+        $editor = User::factory()->editor()->for($agency)->create();
+        $source = NewsSource::factory()->for($agency)->create(['feed_url' => 'https://93.184.216.34/haberler']);
+
+        $this->actingAs($editor)->post(route('source-trust.sources.import', $source))->assertRedirect()->assertSessionHas('success');
+
+        $this->assertSame('https://93.184.216.34/images/json-ld-cover.jpg', RawNewsItem::query()->firstOrFail()->original_image_url);
+    }
+
     private function articleHtml(string $title, string $image): string
     {
         return '<html><head><meta property="og:title" content="'.$title.'"><meta property="og:image" content="/images/'.$image.'"><meta property="article:published_time" content="2026-08-30T12:00:00+03:00"></head><body><article><h1>'.$title.'</h1><p>Bu haber ayrıntısı, HTML DOM ayrıştırıcısının güvenli biçimde içerik çıkarmasını doğrulamak için yeterince uzun bir metin içerir.</p><p>İkinci paragraf haber gövdesinin eksiksiz olarak ham haber havuzuna alınmasını sağlar.</p><p>Belediye ekiplerinin sahadaki çalışmaları belirlenen proje alanında planlı biçimde devam etmektedir.</p><p>Vatandaşlara geçici güzergâh değişikliklerini gösteren yönlendirme levhaları yerleştirilmiştir.</p><p>Son paragraf, tam haber gövdesinin kısa akış özetinin yerine geçtiğini ve uygulama takviminin izlenmesini sağlar.</p></article></body></html>';

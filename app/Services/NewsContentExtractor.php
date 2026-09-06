@@ -468,6 +468,7 @@ class NewsContentExtractor
     private function crawlHtml(string $listingUrl, string $html): array
     {
         $candidates = $this->articleLinks($listingUrl, $html);
+        $listingImages = $this->listingImages($listingUrl, $html);
         $items = [];
 
         foreach (array_slice($candidates, 0, self::MAX_CRAWL_PAGES) as $candidate) {
@@ -480,6 +481,7 @@ class NewsContentExtractor
             $item = $this->parseArticlePage($candidate, $response->body());
 
             if ($item !== null) {
+                $item['image_url'] ??= $listingImages[$candidate] ?? null;
                 $items[] = $item;
             }
         }
@@ -523,6 +525,50 @@ class NewsContentExtractor
         return $this->safeUniqueUrls($urls, $baseUrl);
     }
 
+    /** @return array<string, string> */
+    private function listingImages(string $baseUrl, string $html): array
+    {
+        $xpath = $this->xpath($html);
+
+        if (! $xpath) {
+            return [];
+        }
+
+        $images = [];
+
+        foreach ($xpath->query('//a[@href]') ?: [] as $link) {
+            if (! $link instanceof DOMElement) {
+                continue;
+            }
+
+            $articleUrl = $this->resolveUrl($baseUrl, $link->getAttribute('href'));
+
+            if ($this->safeUniqueUrls([$articleUrl], $baseUrl) === []) {
+                continue;
+            }
+
+            $image = $this->firstNode($xpath, [
+                './/img[@src][1]',
+                './/img[@data-src][1]',
+                './/img[@data-lazy-src][1]',
+                './ancestor::*[self::article or contains(translate(@class, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "haber") or contains(translate(@class, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "news") or contains(translate(@class, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "post")][1]//img[@src or @data-src or @data-lazy-src][1]',
+            ], $link);
+
+            if (! $image instanceof DOMElement) {
+                continue;
+            }
+
+            $source = $image->getAttribute('src') ?: $image->getAttribute('data-src') ?: $image->getAttribute('data-lazy-src');
+            $imageUrl = $this->nullableUrl($baseUrl, $source);
+
+            if ($imageUrl !== null) {
+                $images[$articleUrl] = $imageUrl;
+            }
+        }
+
+        return $images;
+    }
+
     /**
      * @return array{external_id: ?string, title: string, body: string, url: ?string, image_url: ?string, published_at: Carbon}|null
      */
@@ -559,6 +605,7 @@ class NewsContentExtractor
 
         $image = $this->meta($xpath, 'property', 'og:image')
             ?: $this->meta($xpath, 'name', 'twitter:image')
+            ?: $this->jsonLdArticleImage($xpath)
             ?: $this->attribute($xpath, '//article[1]//img[@src][1]', 'src')
             ?: $this->attribute($xpath, '//article[1]//img[@data-src][1]', 'data-src')
             ?: $this->attribute($xpath, '//article[1]//img[@data-lazy-src][1]', 'data-lazy-src')
@@ -583,10 +630,10 @@ class NewsContentExtractor
     }
 
     /** @param array<int, string> $queries */
-    private function firstNode(DOMXPath $xpath, array $queries): ?DOMNode
+    private function firstNode(DOMXPath $xpath, array $queries, ?DOMNode $contextNode = null): ?DOMNode
     {
         foreach ($queries as $query) {
-            $node = $xpath->query($query)?->item(0);
+            $node = $xpath->query($query, $contextNode)?->item(0);
 
             if ($node instanceof DOMNode) {
                 return $node;
@@ -652,6 +699,30 @@ class NewsContentExtractor
                 $body = $this->plainText((string) ($record['articleBody'] ?? ''));
                 if (mb_strlen($body) >= 180) {
                     return $body;
+                }
+            }
+        }
+
+        return '';
+    }
+
+    private function jsonLdArticleImage(DOMXPath $xpath): string
+    {
+        foreach ($xpath->query('//script[@type="application/ld+json"]') ?: [] as $script) {
+            $decoded = json_decode(trim((string) $script->textContent), true);
+
+            foreach ($this->jsonLdRecords($decoded) as $record) {
+                $types = array_map('strtolower', (array) ($record['@type'] ?? []));
+
+                if (array_intersect($types, ['article', 'newsarticle', 'reportagenewsarticle']) === []) {
+                    continue;
+                }
+
+                $image = $record['image'] ?? null;
+                $image = is_array($image) ? ($image['url'] ?? $image[0] ?? null) : $image;
+
+                if (is_string($image) && $image !== '') {
+                    return $image;
                 }
             }
         }

@@ -15,7 +15,6 @@ Schedule::command('schedules:run')->everyMinute()->withoutOverlapping(5);
 Schedule::command('analytics:aggregate')->hourlyAt(5)->withoutOverlapping(10);
 Schedule::command('news:import')->hourly()->withoutOverlapping(55);
 Schedule::command('news:pipeline')->everyMinute()->withoutOverlapping(5);
-Schedule::command('app:retry-failed-automation')->everyTwoMinutes()->withoutOverlapping(5);
 Schedule::command('news:purge-expired')->hourly()->withoutOverlapping(10);
 Schedule::command('app:generate-daily-menu')->dailyAt('00:01')->timezone('Europe/Istanbul')->withoutOverlapping(10)->runInBackground();
 Schedule::command('app:submit-search-console-sitemaps')->dailyAt('00:15')->timezone('Europe/Istanbul')->withoutOverlapping(30)->runInBackground();

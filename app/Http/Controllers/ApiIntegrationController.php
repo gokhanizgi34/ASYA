@@ -12,6 +12,7 @@ use App\Models\AgencyMailSetting;
 use App\Models\ApiIntegration;
 use App\Models\PublishingTarget;
 use App\Models\User;
+use App\Services\GoogleSearchConsoleService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -21,14 +22,27 @@ use Illuminate\View\View;
 
 class ApiIntegrationController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request, GoogleSearchConsoleService $searchConsole): View
     {
         Gate::authorize('viewAny', ApiIntegration::class);
         $user = $request->user();
         abort_unless($user instanceof User, 401);
 
+        $integrations = ApiIntegration::query()
+            ->visibleTo($user)
+            ->with('agency')
+            ->orderByDesc('is_default')
+            ->orderBy('priority')
+            ->orderBy('name')
+            ->paginate(30);
+        $searchConsoleSetups = $integrations->getCollection()
+            ->filter(fn (ApiIntegration $integration): bool => $integration->provider === IntegrationProvider::GoogleSearchConsole)
+            ->mapWithKeys(fn (ApiIntegration $integration): array => [$integration->id => $searchConsole->setupDetails($integration)])
+            ->all();
+
         return view('api-integrations.index', [
-            'integrations' => ApiIntegration::query()->visibleTo($user)->with('agency')->orderByDesc('is_default')->orderBy('priority')->orderBy('name')->paginate(30),
+            'integrations' => $integrations,
+            'searchConsoleSetups' => $searchConsoleSetups,
             'mailSettings' => AgencyMailSetting::query()->visibleTo($user)->with('agency')->orderBy('agency_id')->get(),
             'mailAgencies' => $this->agencies($user),
             'mailSchemes' => MailTransportScheme::cases(),

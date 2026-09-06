@@ -20,6 +20,26 @@ class GoogleSearchConsoleService
 
     private const SCOPE = 'https://www.googleapis.com/auth/webmasters';
 
+    /** @return array{client_email: ?string, project_id: ?string, enable_url: ?string} */
+    public function setupDetails(ApiIntegration $integration): array
+    {
+        $credentials = json_decode((string) $integration->credential, true);
+        $clientEmail = is_array($credentials) && is_string($credentials['client_email'] ?? null)
+            ? $credentials['client_email']
+            : null;
+        $projectId = is_array($credentials) && is_string($credentials['project_id'] ?? null)
+            ? $credentials['project_id']
+            : null;
+
+        return [
+            'client_email' => $clientEmail,
+            'project_id' => $projectId,
+            'enable_url' => $projectId
+                ? 'https://console.cloud.google.com/apis/library/searchconsole.googleapis.com?project='.rawurlencode($projectId)
+                : null,
+        ];
+    }
+
     public function getSite(ApiIntegration $integration): Response
     {
         $this->assertConfigured($integration);

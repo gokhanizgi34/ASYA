@@ -46,12 +46,10 @@ class GoogleSearchConsoleIntegrationTest extends TestCase
         $this->actingAs($owner)
             ->get(route('api-integrations.create', ['provider' => IntegrationProvider::GoogleSearchConsole->value]))
             ->assertOk()
-            ->assertSee('Google’da bir defa yapılacaklar')
-            ->assertSee('https://console.cloud.google.com/apis/library/searchconsole.googleapis.com', false)
+            ->assertSee('Yalnızca sitenizi seçin')
             ->assertSee('https://console.cloud.google.com/iam-admin/serviceaccounts/create', false)
             ->assertSee('https://console.cloud.google.com/iam-admin/serviceaccounts', false)
             ->assertSee('JSON dosyasını oluştur ve indir')
-            ->assertSee('https://search.google.com/search-console/users', false)
             ->assertSee('name="site_url"', false)
             ->assertSee('data-search-console-json', false)
             ->assertSee('İlçe Haber')
@@ -71,6 +69,14 @@ class GoogleSearchConsoleIntegrationTest extends TestCase
         $this->assertSame('https://www.ilcehaber.com/news-sitemap.xml', $integration->model);
         $this->assertSame($credential, $integration->credential);
         $this->assertNotSame($credential, DB::table('api_integrations')->value('credential'));
+        $integration->update(['last_error' => 'HTTP request returned status code 403: API has not been used.']);
+        $this->actingAs($owner)->get(route('api-integrations.index'))
+            ->assertOk()
+            ->assertSee('Google izni henüz tamamlanmadı')
+            ->assertSee('https://console.cloud.google.com/apis/library/searchconsole.googleapis.com?project=example-project', false)
+            ->assertSee('asya-search-console@example-project.iam.gserviceaccount.com')
+            ->assertDontSee('HTTP request returned status code 403');
+        $integration->update(['last_error' => null]);
 
         $this->actingAs($owner)->post(route('api-integrations.test', $integration))
             ->assertRedirect()
@@ -243,6 +249,7 @@ PEM;
 
         return json_encode([
             'type' => 'service_account',
+            'project_id' => 'example-project',
             'client_email' => 'asya-search-console@example-project.iam.gserviceaccount.com',
             'private_key' => $privateKey,
         ], JSON_THROW_ON_ERROR);

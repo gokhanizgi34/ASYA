@@ -3,8 +3,10 @@
 namespace Tests\Feature;
 
 use App\ArticleStatus;
+use App\Jobs\PublishArticleToWordPress;
 use App\Models\Agency;
 use App\Models\Article;
+use App\Models\Publication;
 use App\Models\PublishingTarget;
 use App\Models\Recipe;
 use App\Models\User;
@@ -16,7 +18,7 @@ class GenerateDailyMenuTest extends TestCase
 {
     use DatabaseMigrations;
 
-    public function test_command_creates_one_daily_menu_article_per_active_agency(): void
+    public function test_command_sends_one_daily_menu_article_per_active_agency_to_publication_flow(): void
     {
         Queue::fake();
         $agency = Agency::factory()->create();
@@ -29,9 +31,13 @@ class GenerateDailyMenuTest extends TestCase
         $this->artisan('app:generate-daily-menu')->assertSuccessful();
         $this->artisan('app:generate-daily-menu')->assertSuccessful();
 
+        $article = Article::query()->where('agency_id', $agency->id)->firstOrFail();
         $this->assertSame(1, Article::query()->where('agency_id', $agency->id)->count());
-        $this->assertStringContainsString('Ana yemek', Article::query()->firstOrFail()->body);
-        $this->assertSame(ArticleStatus::Published, Article::query()->firstOrFail()->status);
-        $this->assertDatabaseHas('publications', ['article_id' => Article::query()->firstOrFail()->id]);
+        $this->assertSame(ArticleStatus::Published, $article->status);
+        $this->assertStringContainsString('Ana yemek', $article->body);
+        $this->assertDatabaseHas('seo_analyses', ['article_id' => $article->id]);
+        $this->assertDatabaseHas('publications', ['article_id' => $article->id]);
+        $this->assertSame(1, Publication::query()->where('article_id', $article->id)->count());
+        Queue::assertPushed(PublishArticleToWordPress::class, 1);
     }
 }

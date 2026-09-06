@@ -22,10 +22,11 @@ class GenerateDailyMenu extends Command
         $slug = 'bugun-aksam-ne-yapsam-'.today()->format('Y-m-d');
 
         if ($agencies->isNotEmpty() && $agencies->every(fn (Agency $agency): bool => Article::query()->where('agency_id', $agency->id)->where('slug', $slug)->exists())) {
-            $this->info('Bugünün menü yayınları zaten oluşturulmuş.');
+            $this->info('Bugünün menü haberleri zaten oluşturulmuş.');
 
             return self::SUCCESS;
         }
+
         $menu = $builder->build();
 
         if ($menu->count() < 4) {
@@ -34,9 +35,13 @@ class GenerateDailyMenu extends Command
             return self::FAILURE;
         }
 
-        $published = 0;
+        $created = 0;
 
-        $agencies->each(function (Agency $agency) use ($menu, $publisher, &$published): void {
+        $agencies->each(function (Agency $agency) use ($menu, $publisher, $slug, &$created): void {
+            if (Article::query()->where('agency_id', $agency->id)->where('slug', $slug)->exists()) {
+                return;
+            }
+
             $author = User::query()->where('agency_id', $agency->id)->where('is_active', true)->orderBy('id')->first();
             if (! $author) {
                 return;
@@ -47,21 +52,21 @@ class GenerateDailyMenu extends Command
                 'title' => 'Bugün akşam ne yapsam? '.today()->translatedFormat('d F Y'),
                 'summary' => 'Bugünün ana yemek, soğuk yemek, salata ve tatlı menüsü.',
                 'body' => "Bugün akşam ne yapsam diye düşünenler için dört lezzetli tariften oluşan günlük menü.\n\n{$sections}",
-                'keywords' => ['günlük menü', 'akşam yemeği tarifleri', 'bugün ne pişirsem'],
-                'hashtags' => ['#GünlükMenü', '#YemekTarifleri'],
+                'keywords' => ['bugün ne yemek yapsam', 'günlük yemek menüsü', 'pratik yemek tarifleri'],
+                'hashtags' => ['#GününMenüsü', '#YemekTarifleri'],
                 'category' => 'Yemek Tarifleri',
-                'source_type' => 'daily_menu',
-                'source_id' => today()->toDateString(),
-                'slug' => 'bugun-aksam-ne-yapsam-'.today()->format('Y-m-d'),
+                'source_type' => 'recipe',
+                'source_id' => 'daily-menu-'.today()->toDateString(),
+                'slug' => $slug,
                 'destination' => 'publish',
             ]);
-            $published++;
+            $created++;
         });
 
-        if ($published === 0) {
-            $this->warn('Günlük menü için aktif ajans veya aktif kullanıcı bulunamadı.');
+        if ($created === 0) {
+            $this->warn('Bugünün menü haberi daha önce oluşturulmuş veya aktif ajans bulunamadı.');
         } else {
-            $this->info($published.' ajans için günlük menü Yayın Merkezi’ne gönderildi.');
+            $this->info($created.' ajans için günlük menü haberi oluşturuldu ve yayın akışına gönderildi.');
         }
 
         return self::SUCCESS;

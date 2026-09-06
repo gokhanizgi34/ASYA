@@ -37,27 +37,36 @@ class GoogleSearchConsoleIntegrationTest extends TestCase
         Http::fake(fn (Request $request) => $this->googleResponse($request));
         $agency = Agency::factory()->create();
         $owner = User::factory()->agencyOwner()->for($agency)->create();
+        PublishingTarget::factory()->for($agency)->create([
+            'name' => 'İlçe Haber',
+            'base_url' => 'https://www.ilcehaber.com',
+        ]);
         $credential = $this->serviceAccountJson();
 
         $this->actingAs($owner)
             ->get(route('api-integrations.create', ['provider' => IntegrationProvider::GoogleSearchConsole->value]))
             ->assertOk()
-            ->assertSee('Search Console mülkü')
-            ->assertSee('name="username"', false)
-            ->assertSee('name="model"', false);
+            ->assertSee('Google’da bir defa yapılacaklar')
+            ->assertSee('https://console.cloud.google.com/apis/library/searchconsole.googleapis.com', false)
+            ->assertSee('https://console.cloud.google.com/iam-admin/serviceaccounts/create', false)
+            ->assertSee('https://search.google.com/search-console/users', false)
+            ->assertSee('name="site_url"', false)
+            ->assertSee('data-search-console-json', false)
+            ->assertSee('İlçe Haber')
+            ->assertDontSee('name="username"', false)
+            ->assertDontSee('name="model"', false);
 
         $this->actingAs($owner)->post(route('api-integrations.store'), [
             'provider' => IntegrationProvider::GoogleSearchConsole->value,
-            'username' => 'sc-domain:example.com',
-            'model' => 'https://example.com/news-sitemap.xml',
+            'site_url' => 'https://www.ilcehaber.com',
             'credential' => $credential,
         ])->assertRedirect(route('api-integrations.index'));
 
         $integration = ApiIntegration::query()->sole();
         $this->assertSame(IntegrationProvider::GoogleSearchConsole, $integration->provider);
         $this->assertSame(IntegrationAuthType::None, $integration->auth_type);
-        $this->assertSame('sc-domain:example.com', $integration->username);
-        $this->assertSame('https://example.com/news-sitemap.xml', $integration->model);
+        $this->assertSame('sc-domain:ilcehaber.com', $integration->username);
+        $this->assertSame('https://www.ilcehaber.com/news-sitemap.xml', $integration->model);
         $this->assertSame($credential, $integration->credential);
         $this->assertNotSame($credential, DB::table('api_integrations')->value('credential'));
 

@@ -10,6 +10,7 @@ use App\MailTransportScheme;
 use App\Models\Agency;
 use App\Models\AgencyMailSetting;
 use App\Models\ApiIntegration;
+use App\Models\PublishingTarget;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
@@ -46,7 +47,9 @@ class ApiIntegrationController extends Controller
 
     public function store(StoreApiIntegrationRequest $request): RedirectResponse
     {
-        $this->persist($request->validated());
+        $data = $request->validated();
+        unset($data['site_url']);
+        $this->persist($data);
 
         return redirect()->route('api-integrations.index')->with('success', 'API entegrasyonu oluşturuldu.');
     }
@@ -66,6 +69,7 @@ class ApiIntegrationController extends Controller
     public function update(UpdateApiIntegrationRequest $request, ApiIntegration $apiIntegration): RedirectResponse
     {
         $data = $request->validated();
+        unset($data['site_url']);
 
         if (blank($data['credential'] ?? null)) {
             unset($data['credential']);
@@ -124,11 +128,12 @@ class ApiIntegrationController extends Controller
         });
     }
 
-    /** @return array{agencies: Collection<int, Agency>, providers: array<int, IntegrationProvider>, aiProviders: array<int, IntegrationProvider>, authTypes: array<int, IntegrationAuthType>} */
+    /** @return array{agencies: Collection<int, Agency>, publishingTargets: Collection<int, PublishingTarget>, providers: array<int, IntegrationProvider>, aiProviders: array<int, IntegrationProvider>, authTypes: array<int, IntegrationAuthType>} */
     private function formOptions(User $user, ?ApiIntegration $integration = null): array
     {
         return [
             'agencies' => $this->agencies($user, $integration?->agency_id),
+            'publishingTargets' => PublishingTarget::query()->visibleTo($user)->where('is_active', true)->with('agency')->orderBy('name')->get(),
             'providers' => IntegrationProvider::cases(),
             'aiProviders' => array_values(array_filter(IntegrationProvider::cases(), fn (IntegrationProvider $provider): bool => $provider->usesSimpleSetup())),
             'authTypes' => IntegrationAuthType::cases(),

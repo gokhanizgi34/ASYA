@@ -29,6 +29,7 @@ class StoreApiIntegrationRequest extends FormRequest
             'agency_id' => ['required', 'integer', Rule::exists('agencies', 'id')->where('is_active', true)],
             'name' => ['required', 'string', 'max:150', Rule::unique('api_integrations', 'name')->where(fn ($query) => $query->where('agency_id', $this->input('agency_id')))->withoutTrashed()->ignore($this->integrationForUniqueRule())],
             'provider' => ['required', Rule::enum(IntegrationProvider::class)],
+            'site_url' => [Rule::requiredIf($provider === IntegrationProvider::GoogleSearchConsole && blank($this->input('username'))), 'nullable', 'url:http,https', 'max:1000'],
             'model' => [
                 Rule::requiredIf($provider?->isAi() === true || $provider === IntegrationProvider::GoogleSearchConsole),
                 'nullable',
@@ -121,6 +122,10 @@ class StoreApiIntegrationRequest extends FormRequest
         $integration = $this->integrationForUniqueRule();
         $isAiProvider = $provider?->isAi() === true;
         $isSearchConsole = $provider === IntegrationProvider::GoogleSearchConsole;
+        $searchConsoleSiteUrl = $isSearchConsole ? rtrim(trim((string) $this->input('site_url')), '/') : '';
+        $searchConsoleHost = strtolower((string) parse_url($searchConsoleSiteUrl, PHP_URL_HOST));
+        $searchConsoleProperty = $searchConsoleHost !== '' ? 'sc-domain:'.preg_replace('/^www\./', '', $searchConsoleHost) : null;
+        $searchConsoleSitemap = $searchConsoleSiteUrl !== '' ? $searchConsoleSiteUrl.'/news-sitemap.xml' : null;
         $isManagedProvider = $provider?->usesSimpleSetup() === true;
         $providerWasChanged = $integration && $integration->provider !== $provider;
 
@@ -129,14 +134,14 @@ class StoreApiIntegrationRequest extends FormRequest
             'name' => $isManagedProvider ? $provider->label() : trim((string) $this->input('name')),
             'model' => $isAiProvider
                 ? ($providerWasChanged ? ($provider->suggestedModels()[0] ?? null) : ($integration?->model ?? $provider->suggestedModels()[0] ?? null))
-                : (($isSearchConsole || filled($this->input('model'))) ? trim((string) $this->input('model')) : null),
+                : ($isSearchConsole ? ($searchConsoleSitemap ?? trim((string) $this->input('model'))) : (filled($this->input('model')) ? trim((string) $this->input('model')) : null)),
             'priority' => $isManagedProvider ? ($integration?->priority ?? 50) : (int) $this->input('priority', 50),
             'is_default' => $isAiProvider ? ($integration?->is_default ?? false) : $this->boolean('is_default'),
             'visual_enabled' => $provider === IntegrationProvider::Pixabay || $this->boolean('visual_enabled'),
             'base_url' => rtrim(trim((string) ($isManagedProvider ? $provider->defaultBaseUrl() : $this->input('base_url'))), '/'),
             'auth_type' => $isManagedProvider ? $provider->defaultAuthType()->value : $this->input('auth_type'),
             'username' => $isSearchConsole
-                ? trim((string) $this->input('username'))
+                ? ($searchConsoleProperty ?? trim((string) $this->input('username')))
                 : ($isManagedProvider ? null : (filled($this->input('username')) ? trim((string) $this->input('username')) : null)),
             'api_key_header' => $isManagedProvider ? $provider->defaultApiKeyHeader() : (filled($this->input('api_key_header')) ? trim((string) $this->input('api_key_header')) : null),
             'credential' => filled($this->input('credential')) ? trim((string) $this->input('credential')) : null,

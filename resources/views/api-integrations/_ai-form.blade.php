@@ -2,6 +2,10 @@
     $selectedProvider = App\IntegrationProvider::tryFrom((string) old('provider', request('provider', $integration?->provider?->value ?? App\IntegrationProvider::OpenAi->value))) ?? App\IntegrationProvider::OpenAi;
     $selectedProvider = $selectedProvider->usesSimpleSetup() ? $selectedProvider : App\IntegrationProvider::OpenAi;
     $isSearchConsole = $selectedProvider === App\IntegrationProvider::GoogleSearchConsole;
+    $savedSearchConsoleSiteUrl = $isSearchConsole && $integration?->model
+        ? preg_replace('#/news-sitemap\.xml$#', '', $integration->model)
+        : null;
+    $selectedSiteUrl = old('site_url', $savedSearchConsoleSiteUrl ?? $publishingTargets->first()?->base_url);
 @endphp
 
 <div class="grid gap-6">
@@ -21,24 +25,58 @@
 
     @if ($isSearchConsole)
         <input type="hidden" name="provider" value="{{ App\IntegrationProvider::GoogleSearchConsole->value }}">
-        <div class="rounded-2xl border border-cyan-400/20 bg-cyan-400/5 p-5 text-sm text-slate-300">
-            <strong class="block text-cyan-200">Google Search Console kurulumu</strong>
-            <p class="mt-2">Hizmet hesabının e-posta adresini Search Console mülküne kullanıcı olarak ekleyin. Ardından mülk adresini, WordPress haber site haritasını ve indirilen JSON dosyasının içeriğini girin.</p>
+
+        <section class="grid gap-4 rounded-2xl border border-cyan-400/20 bg-cyan-400/5 p-5">
+            <div>
+                <strong class="text-lg text-cyan-200">Google’da bir defa yapılacaklar</strong>
+                <p class="mt-1 text-sm text-slate-400">Butonlar doğrudan gerekli Google sayfalarını açar.</p>
+            </div>
+            <div class="grid gap-3 sm:grid-cols-3">
+                <a href="https://console.cloud.google.com/apis/library/searchconsole.googleapis.com" target="_blank" rel="noopener noreferrer" class="rounded-xl border border-cyan-300/20 bg-slate-950/60 px-4 py-3 text-center text-sm font-bold text-cyan-200 hover:border-cyan-300/50">1. API’yi etkinleştir ↗</a>
+                <a href="https://console.cloud.google.com/iam-admin/serviceaccounts/create" target="_blank" rel="noopener noreferrer" class="rounded-xl border border-cyan-300/20 bg-slate-950/60 px-4 py-3 text-center text-sm font-bold text-cyan-200 hover:border-cyan-300/50">2. Hizmet hesabı oluştur ↗</a>
+                <a href="https://search.google.com/search-console/users" target="_blank" rel="noopener noreferrer" class="rounded-xl border border-cyan-300/20 bg-slate-950/60 px-4 py-3 text-center text-sm font-bold text-cyan-200 hover:border-cyan-300/50">3. Search Console kullanıcıları ↗</a>
+            </div>
+            <ol class="list-decimal space-y-2 pl-5 text-sm leading-6 text-slate-300">
+                <li>İlk butondan Search Console API’yi <strong>Etkinleştir</strong>.</li>
+                <li>İkinci butondan bir hizmet hesabı oluştur. Hesabı açıp <strong>Anahtarlar → Anahtar ekle → Yeni anahtar → JSON</strong> yoluyla dosyayı indir.</li>
+                <li>Aşağıdan JSON dosyasını seç. ASYA’nın gösterdiği e-posta adresini üçüncü butondaki Search Console kullanıcılarına <strong>Tam kullanıcı</strong> olarak ekle.</li>
+            </ol>
+        </section>
+
+        <label>
+            <span class="mb-2 block text-sm font-semibold">WordPress sitesi</span>
+            @if ($publishingTargets->isNotEmpty())
+                <select name="site_url" required class="w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 outline-none focus:border-cyan-300">
+                    @if ($selectedSiteUrl && ! $publishingTargets->contains(fn ($target) => rtrim($target->base_url, '/') === rtrim($selectedSiteUrl, '/')))
+                        <option value="{{ $selectedSiteUrl }}" selected>{{ $selectedSiteUrl }}</option>
+                    @endif
+                    @foreach ($publishingTargets as $target)
+                        <option value="{{ rtrim($target->base_url, '/') }}" @selected(rtrim((string) $selectedSiteUrl, '/') === rtrim($target->base_url, '/'))>{{ $target->name }} · {{ $target->base_url }}@if(auth()->user()->isSystemAdministrator()) · {{ $target->agency->name }}@endif</option>
+                    @endforeach
+                </select>
+                <small class="mt-2 block text-emerald-300/80">ASYA, Search Console mülkünü ve <code>/news-sitemap.xml</code> adresini otomatik hazırlar.</small>
+            @else
+                <input type="url" name="site_url" value="{{ $selectedSiteUrl }}" maxlength="1000" required placeholder="https://www.siteniz.com" class="w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 outline-none focus:border-cyan-300">
+                <small class="mt-2 block text-amber-200/80">Kayıtlı WordPress hedefi bulunamadı. Sitenizin ana adresini yazın.</small>
+            @endif
+        </label>
+
+        <label>
+            <span class="mb-2 block text-sm font-semibold">Google’dan indirdiğiniz JSON dosyası</span>
+            <input type="file" accept=".json,application/json" data-search-console-json @required(! $integration) class="block w-full cursor-pointer rounded-xl border border-cyan-400/30 bg-slate-900 text-sm text-slate-300 file:mr-4 file:border-0 file:bg-cyan-300 file:px-5 file:py-3 file:font-bold file:text-slate-950 hover:file:bg-cyan-200">
+            <small class="mt-2 block text-slate-500">Dosyayı açıp kopyalamanız gerekmez; yalnızca seçin.</small>
+        </label>
+        <textarea name="credential" data-search-console-credential class="hidden" aria-hidden="true"></textarea>
+        <div data-search-console-email-card class="hidden rounded-xl border border-emerald-400/25 bg-emerald-400/10 p-4 text-sm text-emerald-100">
+            <strong class="block">Search Console’a eklenecek e-posta</strong>
+            <div class="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+                <code data-search-console-email class="min-w-0 flex-1 break-all rounded-lg bg-slate-950/60 px-3 py-2"></code>
+                <button type="button" data-copy-search-console-email class="rounded-lg border border-emerald-300/30 px-3 py-2 font-bold">Kopyala</button>
+            </div>
         </div>
-        <label>
-            <span class="mb-2 block text-sm font-semibold">Search Console mülkü</span>
-            <input name="username" value="{{ old('username', $integration?->username) }}" maxlength="1000" required placeholder="sc-domain:ornek.com" class="w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 outline-none focus:border-cyan-300">
-            <small class="mt-2 block text-slate-500">Örnek: sc-domain:ilcehaber.com veya https://www.ilcehaber.com/</small>
-        </label>
-        <label>
-            <span class="mb-2 block text-sm font-semibold">Haber site haritası</span>
-            <input type="url" name="model" value="{{ old('model', $integration?->model) }}" maxlength="1000" required placeholder="https://www.ornek.com/news-sitemap.xml" class="w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 outline-none focus:border-cyan-300">
-        </label>
-        <label>
-            <span class="mb-2 block text-sm font-semibold">Hizmet hesabı JSON içeriği</span>
-            <textarea name="credential" rows="10" maxlength="10000" @required(! $integration) autocomplete="off" placeholder="{{ $integration ? 'Değişmeyecekse boş bırakın' : 'İndirilen JSON dosyasının tamamını buraya yapıştırın' }}" class="w-full rounded-xl border border-cyan-400/30 bg-slate-900 px-4 py-3 font-mono text-xs outline-none focus:border-cyan-300"></textarea>
-            <small class="mt-2 block text-emerald-300/80">Özel anahtar şifreli saklanır ve ekranda tekrar gösterilmez.</small>
-        </label>
+        @if ($integration)
+            <p class="rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-sm text-slate-300">Mevcut JSON anahtarı korunur. Yalnızca değiştirmek istiyorsanız yeni dosya seçin.</p>
+        @endif
         <input type="hidden" name="visual_enabled" value="0">
     @else
         <label>
@@ -68,3 +106,51 @@
         @endif
     @endif
 </div>
+
+@if ($isSearchConsole)
+<script>
+    (() => {
+        const fileInput = document.querySelector('[data-search-console-json]');
+        const credentialInput = document.querySelector('[data-search-console-credential]');
+        const emailCard = document.querySelector('[data-search-console-email-card]');
+        const emailOutput = document.querySelector('[data-search-console-email]');
+        const copyButton = document.querySelector('[data-copy-search-console-email]');
+
+        if (!fileInput || !credentialInput || !emailCard || !emailOutput) {
+            return;
+        }
+
+        fileInput.addEventListener('change', async () => {
+            fileInput.setCustomValidity('');
+            emailCard.classList.add('hidden');
+            credentialInput.value = '';
+
+            const file = fileInput.files?.[0];
+            if (!file) {
+                return;
+            }
+
+            try {
+                const content = await file.text();
+                const credentials = JSON.parse(content);
+
+                if (credentials.type !== 'service_account' || !credentials.client_email || !credentials.private_key) {
+                    throw new Error('invalid-service-account');
+                }
+
+                credentialInput.value = content;
+                emailOutput.textContent = credentials.client_email;
+                emailCard.classList.remove('hidden');
+            } catch (error) {
+                fileInput.setCustomValidity('Bu dosya geçerli bir Google hizmet hesabı JSON dosyası değil.');
+                fileInput.reportValidity();
+            }
+        });
+
+        copyButton?.addEventListener('click', async () => {
+            await navigator.clipboard.writeText(emailOutput.textContent ?? '');
+            copyButton.textContent = 'Kopyalandı';
+        });
+    })();
+</script>
+@endif

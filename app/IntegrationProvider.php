@@ -8,6 +8,7 @@ enum IntegrationProvider: string
     case OpenAi = 'openai';
     case Anthropic = 'anthropic';
     case GoogleGemini = 'google_gemini';
+    case GoogleSearchConsole = 'google_search_console';
     case Pixabay = 'pixabay';
     case DeepSeek = 'deepseek';
     case Mistral = 'mistral';
@@ -27,6 +28,7 @@ enum IntegrationProvider: string
             self::OpenAi => 'OpenAI',
             self::Anthropic => 'Anthropic Claude',
             self::GoogleGemini => 'Google Gemini',
+            self::GoogleSearchConsole => 'Google Search Console',
             self::Pixabay => 'Pixabay Görsel API',
             self::DeepSeek => 'DeepSeek',
             self::Mistral => 'Mistral AI',
@@ -57,7 +59,7 @@ enum IntegrationProvider: string
 
     public function usesSimpleSetup(): bool
     {
-        return $this->isAi() || in_array($this, [self::XTrends, self::Pixabay], true);
+        return $this->isAi() || in_array($this, [self::XTrends, self::Pixabay, self::GoogleSearchConsole], true);
     }
 
     public function defaultBaseUrl(): ?string
@@ -66,6 +68,7 @@ enum IntegrationProvider: string
             self::OpenAi => 'https://api.openai.com/v1/models',
             self::Anthropic => 'https://api.anthropic.com/v1/models',
             self::GoogleGemini => 'https://generativelanguage.googleapis.com/v1beta/models',
+            self::GoogleSearchConsole => 'https://www.googleapis.com/webmasters/v3',
             self::Pixabay => 'https://pixabay.com/api/',
             self::XTrends => 'https://api.x.com/2/trends/by/woeid',
             self::DeepSeek => 'https://api.deepseek.com/models',
@@ -82,7 +85,7 @@ enum IntegrationProvider: string
     {
         return match ($this) {
             self::Anthropic => IntegrationAuthType::ApiKeyHeader,
-            self::GoogleGemini, self::Pixabay => IntegrationAuthType::None,
+            self::GoogleGemini, self::Pixabay, self::GoogleSearchConsole => IntegrationAuthType::None,
             default => IntegrationAuthType::Bearer,
         };
     }

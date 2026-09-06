@@ -18,4 +18,5 @@ Schedule::command('news:pipeline')->everyMinute()->withoutOverlapping(5);
 Schedule::command('app:retry-failed-automation')->everyTwoMinutes()->withoutOverlapping(5);
 Schedule::command('news:purge-expired')->hourly()->withoutOverlapping(10);
 Schedule::command('app:generate-daily-menu')->dailyAt('00:01')->timezone('Europe/Istanbul')->withoutOverlapping(10)->runInBackground();
+Schedule::command('app:submit-search-console-sitemaps')->dailyAt('00:15')->timezone('Europe/Istanbul')->withoutOverlapping(30)->runInBackground();
 Schedule::command('database:backup')->dailyAt('03:30')->withoutOverlapping(60);

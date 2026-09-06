@@ -2,6 +2,8 @@
 
 namespace App\Jobs;
 
+use App\IntegrationProvider;
+use App\Models\ApiIntegration;
 use App\Models\Publication;
 use App\PublicationStatus;
 use App\Services\NotificationCenter;
@@ -68,6 +70,21 @@ class PublishArticleToWordPress implements ShouldBeUnique, ShouldQueue
                 'failure_message' => null,
             ])->save();
             $publication->publishingTarget->forceFill(['last_connected_at' => now(), 'last_error' => null])->save();
+
+            $searchConsoleIntegration = ApiIntegration::query()
+                ->where('agency_id', $publication->agency_id)
+                ->where('provider', IntegrationProvider::GoogleSearchConsole)
+                ->where('is_active', true)
+                ->orderBy('priority')
+                ->first();
+
+            if ($searchConsoleIntegration) {
+                SubmitSitemapToSearchConsole::dispatch($searchConsoleIntegration->id)
+                    ->onQueue('operations');
+                InspectPublishedUrlInSearchConsole::dispatch($publication->id)
+                    ->onQueue('operations')
+                    ->delay(now()->addMinutes(30));
+            }
         } catch (Throwable $exception) {
             $message = str($exception->getMessage())->limit(1000)->toString();
             $publication->forceFill(['status' => PublicationStatus::Failed, 'failure_message' => $message, 'completed_at' => now()])->save();

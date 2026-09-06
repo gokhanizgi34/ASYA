@@ -22,4 +22,16 @@ class EditorialAutomationScheduleTest extends TestCase
             $this->assertTrue($event->runInBackground);
         }
     }
+
+    public function test_search_console_sitemaps_are_submitted_daily_at_0015_in_istanbul(): void
+    {
+        $event = collect(app(Schedule::class)->events())
+            ->first(fn (Event $event): bool => str_contains((string) $event->command, 'app:submit-search-console-sitemaps'));
+
+        $this->assertNotNull($event);
+        $this->assertSame('15 0 * * *', $event->expression);
+        $this->assertSame('Europe/Istanbul', $event->timezone);
+        $this->assertTrue($event->withoutOverlapping);
+        $this->assertTrue($event->runInBackground);
+    }
 }

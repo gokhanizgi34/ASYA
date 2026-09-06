@@ -17,6 +17,7 @@ class ApiIntegrationTester
     public function __construct(
         private readonly ExternalUrlGuard $urlGuard,
         private readonly RouteMethodLearner $routeMethodLearner,
+        private readonly GoogleSearchConsoleService $searchConsole,
     ) {}
 
     public function test(ApiIntegration $integration): bool
@@ -34,6 +35,18 @@ class ApiIntegrationTester
                 ]);
 
                 return false;
+            }
+
+            if ($integration->provider === IntegrationProvider::GoogleSearchConsole) {
+                $response = $this->searchConsole->getSite($integration);
+                $integration->update([
+                    'last_tested_at' => now(),
+                    'last_status_code' => $response->status(),
+                    'last_response_time_ms' => $this->elapsedMilliseconds($startedAt),
+                    'last_error' => null,
+                ]);
+
+                return true;
             }
 
             $testUrl = $integration->provider === IntegrationProvider::XTrends

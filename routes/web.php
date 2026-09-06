@@ -56,6 +56,7 @@ use App\Http\Controllers\RawNewsProductionController;
 use App\Http\Controllers\RecipeController;
 use App\Http\Controllers\ScheduleEntryController;
 use App\Http\Controllers\ScheduleEntryStatusController;
+use App\Http\Controllers\SearchConsoleSitemapSubmissionController;
 use App\Http\Controllers\SeoAnalysisController;
 use App\Http\Controllers\SocialFeedImportController;
 use App\Http\Controllers\SocialFeedSourceController;
@@ -181,6 +182,7 @@ Route::middleware(['auth', EnsureUserIsActive::class, ApplySystemSettings::class
     Route::post('/entegrasyonlar/mail-ayarlari', [AgencyMailSettingController::class, 'store'])->name('agency-mail-settings.store');
     Route::post('/entegrasyonlar/mail-ayarlari/{agencyMailSetting}/test', AgencyMailTestController::class)->name('agency-mail-settings.test');
     Route::post('/entegrasyonlar/{apiIntegration}/test', ApiIntegrationTestController::class)->name('api-integrations.test');
+    Route::post('/entegrasyonlar/{apiIntegration}/search-console/site-haritasi', SearchConsoleSitemapSubmissionController::class)->name('api-integrations.search-console.sitemap');
     Route::resource('entegrasyonlar', ApiIntegrationController::class)
         ->parameters(['entegrasyonlar' => 'apiIntegration'])
         ->except('show')

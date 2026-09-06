@@ -3,7 +3,7 @@
         <header>
             <a href="{{ route('api-integrations.index') }}" class="text-sm font-semibold text-cyan-300">← Entegrasyonlar</a>
             <h1 class="mt-4 text-3xl font-black">API sağlayıcısı ekle</h1>
-            <p class="mt-2 text-slate-400">Yapay zekâ, X Trends veya Pixabay sağlayıcısını seçip yalnızca API anahtarını yapıştırın. Geri kalan ayarları ASYA tamamlar.</p>
+            <p class="mt-2 text-slate-400">Yapay zekâ, medya ve Google Search Console bağlantılarını ajans bazında güvenle yapılandırın.</p>
         </header>
         <form method="POST" action="{{ route('api-integrations.store') }}" class="space-y-6 rounded-2xl border border-white/10 bg-white/[.04] p-6">
             @csrf

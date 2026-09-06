@@ -49,6 +49,8 @@ class GoogleSearchConsoleIntegrationTest extends TestCase
             ->assertSee('Google’da bir defa yapılacaklar')
             ->assertSee('https://console.cloud.google.com/apis/library/searchconsole.googleapis.com', false)
             ->assertSee('https://console.cloud.google.com/iam-admin/serviceaccounts/create', false)
+            ->assertSee('https://console.cloud.google.com/iam-admin/serviceaccounts', false)
+            ->assertSee('JSON dosyasını oluştur ve indir')
             ->assertSee('https://search.google.com/search-console/users', false)
             ->assertSee('name="site_url"', false)
             ->assertSee('data-search-console-json', false)

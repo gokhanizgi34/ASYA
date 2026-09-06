@@ -61,10 +61,21 @@
             @endif
         </label>
 
+        <section class="grid gap-3 rounded-2xl border border-amber-300/20 bg-amber-300/5 p-5">
+            <div>
+                <strong class="block text-amber-200">Google JSON dosyasını nereden indireceğim?</strong>
+                <p class="mt-1 text-sm leading-6 text-slate-300">Aşağıdaki bağlantıya Gmail hesabınızla giriş yapın. Google Cloud projenizi seçin veya ücretsiz bir proje oluşturun. Hizmet hesabını oluşturduktan sonra <strong>Anahtarlar → Anahtar ekle → Yeni anahtar oluştur → JSON</strong> seçin; dosya bilgisayarınıza iner.</p>
+            </div>
+            <div class="flex flex-col gap-2 sm:flex-row">
+                <a href="https://console.cloud.google.com/iam-admin/serviceaccounts/create" target="_blank" rel="noopener noreferrer" class="rounded-xl bg-amber-300 px-4 py-3 text-center text-sm font-black text-slate-950 hover:bg-amber-200">JSON dosyasını oluştur ve indir ↗</a>
+                <a href="https://console.cloud.google.com/iam-admin/serviceaccounts" target="_blank" rel="noopener noreferrer" class="rounded-xl border border-amber-300/25 px-4 py-3 text-center text-sm font-bold text-amber-200 hover:border-amber-300/50">Daha önce oluşturduğum hesabı aç ↗</a>
+            </div>
+        </section>
+
         <label>
-            <span class="mb-2 block text-sm font-semibold">Google’dan indirdiğiniz JSON dosyası</span>
+            <span class="mb-2 block text-sm font-semibold">İndirdiğiniz JSON dosyasını buradan seçin</span>
             <input type="file" accept=".json,application/json" data-search-console-json @required(! $integration) class="block w-full cursor-pointer rounded-xl border border-cyan-400/30 bg-slate-900 text-sm text-slate-300 file:mr-4 file:border-0 file:bg-cyan-300 file:px-5 file:py-3 file:font-bold file:text-slate-950 hover:file:bg-cyan-200">
-            <small class="mt-2 block text-slate-500">Dosyayı açıp kopyalamanız gerekmez; yalnızca seçin.</small>
+            <small class="mt-2 block text-slate-500">Dosyayı açıp kopyalamanız gerekmez; yalnızca bilgisayarınızdan seçin.</small>
         </label>
         <textarea name="credential" data-search-console-credential class="hidden" aria-hidden="true"></textarea>
         <div data-search-console-email-card class="hidden rounded-xl border border-emerald-400/25 bg-emerald-400/10 p-4 text-sm text-emerald-100">

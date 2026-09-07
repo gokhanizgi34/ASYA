@@ -60,13 +60,44 @@ class NewsPipelineGuardTest extends TestCase
     {
         $item = RawNewsItem::factory()->make([
             'original_title' => 'T.C. Maltepe Belediyesi',
-            'original_body' => implode(' ', array_fill(0, 8, 'Maltepe Belediyesi farklı mahallelerde çalışma ve etkinlik programları başlattı.')),
+            'original_body' => 'Kurumsal bağlantılar iletişim bilgileri hizmet rehberi ve ana sayfa menüsü.',
         ]);
 
         $this->expectException(\DomainException::class);
         $this->expectExceptionMessage('kurumsal liste veya ana sayfa');
 
         app(NewsContentQualityGate::class)->assertRawNews($item);
+    }
+
+    public function test_short_ferry_accident_is_accepted_as_complete_news(): void
+    {
+        $item = RawNewsItem::factory()->make([
+            'source_name' => 'NTV',
+            'original_title' => 'Marmara’da panik: Feribot iskeleye çarptı',
+            'original_body' => 'İstanbul-Mudanya seferini yapan feribot yanaşma sırasında iskeleye çarptı. Yolcular panik yaşarken yaralanan olmadı. Olayla ilgili inceleme başlatıldı.',
+        ]);
+
+        app(NewsContentQualityGate::class)->assertGenerated($item, [
+            'title' => 'Marmara’da panik: Feribot iskeleye çarptı',
+            'summary' => 'Mudanya İskelesi’nde meydana gelen kazada feribotta hasar oluşurken yolcuların sağlık durumunun iyi olduğu bildirildi.',
+            'body' => 'İstanbul ile Mudanya arasında sefer yapan feribot, akşam saatlerinde yanaşma sırasında iskeleye çarptı. Çarpmanın etkisiyle feribotun ön bölümünde hasar meydana geldi. Yolcular kısa süreli panik yaşarken olayda yaralanan olmadığı bildirildi. Kazanın nedeninin belirlenmesi için inceleme başlatıldı.',
+        ]);
+
+        $this->addToAssertionCount(1);
+    }
+
+    public function test_municipality_or_news_word_in_title_does_not_block_real_event(): void
+    {
+        $item = RawNewsItem::factory()->make([
+            'source_name' => 'Ali Tombaş',
+            'source_url' => 'https://www.instagram.com/p/example',
+            'original_title' => 'Sultanbeyli Belediyesi Haber: Koordinasyon toplantısı',
+            'original_body' => 'Başkan yardımcıları ve birim müdürleriyle koordinasyon toplantısı gerçekleştirildi.',
+        ]);
+
+        app(NewsContentQualityGate::class)->assertRawNews($item);
+
+        $this->addToAssertionCount(1);
     }
 
     public function test_policy_and_cookie_page_is_rejected_as_non_news(): void

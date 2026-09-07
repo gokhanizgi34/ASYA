@@ -14,16 +14,16 @@ class NewsContentQualityGateTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_short_feed_summary_is_rejected_as_incomplete_news(): void
+    public function test_short_newsworthy_feed_summary_is_accepted(): void
     {
         $rawNewsItem = RawNewsItem::factory()->for(Agency::factory())->create([
+            'original_title' => 'Belediye yeni park çalışmasını başlattı',
             'original_body' => 'Belediye yeni park çalışmasını duyurdu. Ayrıntılar daha sonra açıklanacak.',
         ]);
 
-        $this->expectException(DomainException::class);
-        $this->expectExceptionMessage('tam haber gövdesi');
-
         app(NewsContentQualityGate::class)->assertRawNews($rawNewsItem);
+
+        $this->addToAssertionCount(1);
     }
 
     public function test_repetitive_ai_filler_is_rejected(): void

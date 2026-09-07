@@ -13,21 +13,21 @@ class NewsContentQualityGate
     {
         $body = $this->plainText($rawNewsItem->original_body);
         $title = $this->plainText($rawNewsItem->original_title);
-        $isSocialSource = $rawNewsItem->newsSource?->source_type === 'social';
+        $newsText = $this->plainText($title.' '.$body);
 
-        if (preg_match('/^(?:t\\.?c\\.?\\s*)?.{2,80}\\s+(?:belediyesi|valiliği|kaymakamlığı)$/iu', $title) === 1) {
-            throw new DomainException('Sayfa başlığı bir haber başlığı değil; kurumsal liste veya ana sayfa içeriğidir.');
+        if (Str::length($title) < 5 || Str::length($body) < 10) {
+            throw new DomainException('Başlık veya haber konusu okunamayacak kadar kısa.');
         }
 
-        if ((! $isSocialSource && Str::length($body) < 350) || count($this->sentences($body)) < ($isSocialSource ? 1 : 4)) {
-            throw new DomainException('Ham haber özeti değil, en az dört anlamlı cümleden oluşan tam haber gövdesi gereklidir.');
+        if (preg_match('/^(?:t\\.?c\\.?\\s*)?.{2,80}\\s+(?:belediyesi|valiliği|kaymakamlığı)$/iu', $title) === 1
+            && ! $this->containsNewsSignal($newsText)) {
+            throw new DomainException('Sayfa başlığı bir haber başlığı değil; kurumsal liste veya ana sayfa içeriğidir.');
         }
 
         if (preg_match('/Google Trends verilerine göre|arama hacmi|trendle ilişkilendirilen|yalnızca bağlantılı kaynak|detaylı bilgi için lütfen tıklayınız/iu', $body) === 1) {
             throw new DomainException('Trend sinyali tam haber içeriği değildir; bağlantılı haber gövdesi alınmalıdır.');
         }
 
-        $newsText = $this->plainText($rawNewsItem->original_title.' '.$body);
         if (preg_match('/gizlilik (?:ve |)çerez|çerez (?:politikası|ilkeleri|tercihleri)|gizlilik politikası|kişisel verilerin korunması|kvkk|aydınlatma metni|kullanım koşulları|site haritası|üyelik sözleşmesi|mesafeli satış|iade politikası/iu', $newsText) === 1) {
             throw new DomainException('İçerik haber değil; politika, çerez, sözleşme veya kurumsal yardımcı sayfadır.');
         }
@@ -35,7 +35,7 @@ class NewsContentQualityGate
             throw new DomainException('İçerik haber yerine reklam, satış veya spam metni içeriyor.');
         }
 
-        if (preg_match('/başladı|açıldı|tamamlandı|düzenlendi|gerçekleştirildi|duyurdu|açıkladı|bildirildi|sürüyor|devam ediyor|buluştu|katıldı|ziyaret etti|toplantı|karar|proje|çalışma|etkinlik|festival|operasyon|kaza|yangın|gözaltı|hayatını kaybetti|kazandı|imzalandı|hizmete|başlayacak/iu', $newsText) !== 1) {
+        if (! $this->containsNewsSignal($newsText)) {
             throw new DomainException('Metinde doğrulanabilir bir olay, karar, açıklama veya gelişme bulunamadı.');
         }
     }
@@ -46,9 +46,16 @@ class NewsContentQualityGate
         $this->assertRawNews($rawNewsItem);
         $body = $this->plainText($content['body']);
         $sentences = $this->sentences($body);
+        $isBriefSource = $this->isSocialSource($rawNewsItem)
+            || Str::length($this->plainText($rawNewsItem->original_body)) < 350;
+        $minimumBodyLength = $isBriefSource ? 100 : 180;
+        $minimumWordCount = $isBriefSource ? 15 : 25;
+        $minimumSentenceCount = $isBriefSource ? 1 : 2;
 
-        if (Str::length($body) < 700 || count(preg_split('/\s+/u', $body) ?: []) < 100 || count($sentences) < 6) {
-            throw new DomainException('AI çıktısı eksiksiz bir haber için yeterli uzunluk ve paragraf bütünlüğü taşımıyor.');
+        if (Str::length($body) < $minimumBodyLength
+            || count(preg_split('/\s+/u', $body) ?: []) < $minimumWordCount
+            || count($sentences) < $minimumSentenceCount) {
+            throw new DomainException('AI çıktısı haber konusunu anlamlı ve bütünlüklü biçimde işlemiyor.');
         }
 
         $normalizedSentences = collect($sentences)->map(fn (string $sentence): string => Str::lower(Str::squish($sentence)));
@@ -56,10 +63,11 @@ class NewsContentQualityGate
             throw new DomainException('AI çıktısında tekrarlanan veya dolgu cümleler tespit edildi.');
         }
 
-        $sourceTokens = $this->significantTokens($rawNewsItem->original_title.' '.$rawNewsItem->original_body);
+        $sourceTokens = $this->significantTokens($rawNewsItem->source_name.' '.$rawNewsItem->original_title.' '.$rawNewsItem->original_body);
         $outputTokens = $this->significantTokens($content['title'].' '.$content['summary'].' '.$body);
-        if (count(array_intersect($sourceTokens, $outputTokens)) < 5) {
-            throw new DomainException('AI çıktısı ham haberdeki kişi, kurum, yer ve olay ayrıntılarıyla yeterince örtüşmüyor.');
+        $minimumOverlap = min(count($sourceTokens), $isBriefSource ? 1 : 3);
+        if ($minimumOverlap > 0 && count(array_intersect($sourceTokens, $outputTokens)) < $minimumOverlap) {
+            throw new DomainException('AI çıktısı ham haberdeki kişi, kurum, yer veya olayla örtüşmüyor.');
         }
 
         if (preg_match('/kaynak metindeki doğrulanmış bilgiler|bu haber notunda|yeterli ayrıntı bulunmadığı|okurların .* başvur/iu', $body) === 1) {
@@ -82,6 +90,17 @@ class NewsContentQualityGate
             'summary' => $article->summary,
             'body' => $article->body,
         ]);
+    }
+
+    private function isSocialSource(RawNewsItem $rawNewsItem): bool
+    {
+        return $rawNewsItem->newsSource?->source_type === 'social'
+            || Str::contains(Str::lower((string) $rawNewsItem->source_url), ['instagram.com/', 'facebook.com/', 'x.com/', 'twitter.com/', 'tiktok.com/']);
+    }
+
+    private function containsNewsSignal(string $text): bool
+    {
+        return preg_match('/başladı|açıldı|tamamlandı|düzenlendi|gerçekleştirildi|duyurdu|açıkladı|bildirildi|paylaştı|mesajı|mesaj|tebrik|kutladı|sürüyor|devam ediyor|buluştu|katıldı|ziyaret etti|toplantı|koordinasyon|görüşme|karar|proje|çalışma|etkinlik|festival|operasyon|kaza|çarp(?:tı|ıştı)|yangın|gözaltı|hayatını kaybetti|yaralandı|kazandı|imzalandı|hizmete|başlayacak|hazırlanıyor|hazırlıyoruz/iu', $text) === 1;
     }
 
     private function plainText(string $value): string

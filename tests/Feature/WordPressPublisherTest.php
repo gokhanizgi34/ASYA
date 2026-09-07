@@ -11,6 +11,7 @@ use App\PublicationStatus;
 use App\PublishingProtocol;
 use App\RemotePublicationStatus;
 use App\Services\WordPressPublisher;
+use App\Services\XVideoFeaturedImageBadge;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
@@ -63,6 +64,12 @@ class WordPressPublisherTest extends TestCase
         $publication->article->update([
             'source_url' => 'https://x.com/umraniyebeltr/status/2097004425772474609/video/1',
         ]);
+        $this->mock(XVideoFeaturedImageBadge::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('apply')
+                ->once()
+                ->with('image-content', 'https://x.com/umraniyebeltr/status/2097004425772474609/video/1')
+                ->andReturn('badged-image-content');
+        });
         Http::preventStrayRequests();
         Http::fake(function (Request $request) {
             if ($request->method() === 'GET') {

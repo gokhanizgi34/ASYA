@@ -22,12 +22,13 @@ class WordPressPublisher
     public function __construct(
         private readonly RouteMethodLearner $routeMethodLearner,
         private readonly DistrictCategoryResolver $districtCategoryResolver,
+        private readonly XVideoFeaturedImageBadge $xVideoFeaturedImageBadge,
     ) {}
 
     /** @return array{post_id: string, media_id: int|null, url: string|null, response_meta: array<string, mixed>} */
     public function publish(Publication $publication): array
     {
-        $publication->loadMissing('publishingTarget');
+        $publication->loadMissing('publishingTarget', 'article');
         $this->guardTargetUrl($publication->publishingTarget->base_url);
 
         return match ($publication->publishingTarget->protocol) {
@@ -204,7 +205,7 @@ class WordPressPublisher
             $apiUrl.'/media',
             HttpMethod::Post,
             'WordPress medya yükleme',
-            fn (): Response => $request->attach('file', Storage::disk($media['disk'])->get($media['path']), basename($media['path']))
+            fn (): Response => $request->attach('file', $this->mediaBytes($publication, $media), basename($media['path']))
                 ->post($apiUrl.'/media', array_filter(['title' => $media['title'], 'alt_text' => $media['alt_text']])),
         );
 
@@ -238,7 +239,7 @@ class WordPressPublisher
                 [
                     'name' => basename($media['path']),
                     'type' => Storage::disk($media['disk'])->mimeType($media['path']) ?: 'application/octet-stream',
-                    'bits' => base64_encode(Storage::disk($media['disk'])->get($media['path'])),
+                    'bits' => base64_encode($this->mediaBytes($publication, $media)),
                     'overwrite' => true,
                 ],
             ]);
@@ -422,6 +423,14 @@ class WordPressPublisher
 
             throw $exception;
         }
+    }
+
+    /** @param array{disk: string, path: string} $media */
+    private function mediaBytes(Publication $publication, array $media): string
+    {
+        $bytes = (string) Storage::disk($media['disk'])->get($media['path']);
+
+        return $this->xVideoFeaturedImageBadge->apply($bytes, (string) $publication->article?->source_url);
     }
 
     private function request(string $username, string $credential): PendingRequest

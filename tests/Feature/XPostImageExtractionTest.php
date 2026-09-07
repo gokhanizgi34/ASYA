@@ -48,7 +48,7 @@ HTML;
         $imageUrl = 'https://pbs.twimg.com/media/HRneJpHXYAAcB4m.jpg';
         $createdAtMs = now()->subMinute()->timestamp * 1000;
         $html = '<html><head><meta property="og:title" content="Ali Tombaş (@alitombastr) on X"></head><body><script>'
-            .'"client:'.$tweetKey.':details":$R[1]={__id:"details",__typename:"TBirdData",full_text:"AK Parti Grup Toplantımızı gerçekleştirdik.\\n\\nSultanbeyli için birlik ve beraberlik ruhuyla çalışmalarımıza devam ediyoruz. https://t.co/4V0szzcP5U",created_at_ms:'.$createdAtMs.'},'
+            .'"client:'.$tweetKey.':details":$R[1]={__id:"details",__typename:"TBirdData",full_text:"AK Parti Grup Toplantımızı, İlçe Başkanımız Sn. Ayhan Üşdi ile birlikte gerçekleştirdik.\\n\\nSultanbeyli için birlik ve beraberlik ruhuyla çalışmalarımıza devam ediyoruz. https://t.co/4V0szzcP5U",created_at_ms:'.$createdAtMs.'},'
             .'"client:'.$tweetKey.':media_entities2:0":$R[2]={__typename:"ApiMediaEntity",media_url_https:"'.$imageUrl.'",type:"photo"}'
             .'</script></body></html>';
         Http::fake([$profileUrl => Http::response($html, 200, ['Content-Type' => 'text/html'])]);
@@ -60,7 +60,7 @@ HTML;
 
         $this->assertSame('x_profile_timeline', $result['method']);
         $this->assertCount(1, $result['items']);
-        $this->assertSame('AK Parti Grup Toplantımızı gerçekleştirdik.', $result['items'][0]['title']);
+        $this->assertSame('AK Parti Grup Toplantımızı, İlçe Başkanımız Sn. Ayhan Üşdi ile birlikte gerçekleştirdik.', $result['items'][0]['title']);
         $this->assertSame('https://x.com/alitombastr/status/'.$statusId, $result['items'][0]['url']);
         $this->assertSame($imageUrl, $result['items'][0]['image_url']);
         $this->assertStringContainsString('Sultanbeyli için birlik', $result['items'][0]['body']);

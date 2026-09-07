@@ -672,12 +672,12 @@ class NewsContentExtractor
 
     private function xTimelineTitle(string $text): string
     {
-        $parts = preg_split('/(?<=[.!?])\s+|\R+/u', $text, -1, PREG_SPLIT_NO_EMPTY) ?: [];
-        $title = collect($parts)
-            ->map(fn (string $part): string => Str::squish($part))
-            ->first(fn (string $part): bool => Str::length($part) >= 10) ?? Str::squish($text);
+        $paragraphs = preg_split('/\R{2,}/u', $text, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $title = collect($paragraphs)
+            ->map(fn (string $paragraph): string => Str::squish($paragraph))
+            ->first(fn (string $paragraph): bool => Str::length($paragraph) >= 10) ?? Str::squish($text);
 
-        return Str::words($title, 24, '…');
+        return Str::limit($title, 500, '');
     }
 
     private function xTimelineImage(string $html, string $tweetKey): ?string

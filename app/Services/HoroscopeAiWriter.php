@@ -6,7 +6,9 @@ use App\IntegrationProvider;
 use App\Models\ApiIntegration;
 use App\ZodiacSign;
 use Carbon\CarbonInterface;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use RuntimeException;
 use Throwable;
@@ -22,19 +24,35 @@ class HoroscopeAiWriter
     /** @return array<string, array{general: string, traits: string, rising: string, love: string, career: string, money: string, health: string, lucky_color: string, lucky_number: int}> */
     public function write(int $agencyId, CarbonInterface $date): array
     {
-        $lastError = 'Aktif ve uyumlu bir AI sağlayıcısı bulunamadı.';
+        $errors = [];
 
         foreach ($this->registry->forAgency($agencyId) as $integration) {
-            try {
-                $payload = $this->decode($this->request($integration, $this->prompt($date)));
+            for ($attempt = 1; $attempt <= 2; $attempt++) {
+                try {
+                    $prompt = $this->prompt($date, $attempt === 2);
+                    $payload = $this->decode($this->request($integration, $prompt));
 
-                return $this->validate($payload);
-            } catch (Throwable $exception) {
-                $lastError = $integration->name.': '.$exception->getMessage();
+                    return $this->validate($payload);
+                } catch (Throwable $exception) {
+                    $errors[] = $integration->name.' (deneme '.$attempt.'): '.$exception->getMessage();
+                    Log::warning('Burç AI üretimi sağlayıcı denemesi başarısız oldu.', [
+                        'agency_id' => $agencyId,
+                        'provider' => $integration->provider->value,
+                        'integration_id' => $integration->id,
+                        'attempt' => $attempt,
+                        'message' => $exception->getMessage(),
+                    ]);
+
+                    if ($exception instanceof RequestException || $attempt === 2) {
+                        break;
+                    }
+                }
             }
         }
 
-        throw new RuntimeException('Günlük burç yorumları AI ile üretilemedi. '.$lastError);
+        $detail = collect($errors)->take(6)->implode(' | ');
+
+        throw new RuntimeException('Günlük burç yorumları AI ile üretilemedi. '.($detail ?: 'Aktif ve uyumlu bir AI sağlayıcısı bulunamadı.'));
     }
 
     private function request(ApiIntegration $integration, string $prompt): string
@@ -49,12 +67,17 @@ class HoroscopeAiWriter
                 ->post($url, [
                     'generationConfig' => [
                         'responseMimeType' => 'application/json',
-                        'maxOutputTokens' => (int) $this->settings->get('ai.max_output_tokens', $integration->agency_id),
+                        'responseJsonSchema' => $this->responseSchema(),
+                        'temperature' => 0.2,
+                        'maxOutputTokens' => max(5000, (int) $this->settings->get('ai.max_output_tokens', $integration->agency_id)),
                     ],
                     'contents' => [['role' => 'user', 'parts' => [['text' => $prompt]]]],
                 ])->throw();
 
-            return (string) data_get($response->json(), 'candidates.0.content.parts.0.text', '');
+            return collect((array) data_get($response->json(), 'candidates.0.content.parts', []))
+                ->pluck('text')
+                ->filter(fn (mixed $part): bool => is_string($part))
+                ->implode("\n");
         }
 
         if (in_array($integration->provider, [IntegrationProvider::OpenAi, IntegrationProvider::DeepSeek, IntegrationProvider::Mistral, IntegrationProvider::XAi, IntegrationProvider::Groq, IntegrationProvider::OpenRouter], true)) {
@@ -68,7 +91,7 @@ class HoroscopeAiWriter
                 ->post($url, [
                     'model' => $integration->model,
                     'response_format' => ['type' => 'json_object'],
-                    'max_tokens' => (int) $this->settings->get('ai.max_output_tokens', $integration->agency_id),
+                    'max_tokens' => max(5000, (int) $this->settings->get('ai.max_output_tokens', $integration->agency_id)),
                     'messages' => [['role' => 'user', 'content' => $prompt]],
                 ])->throw();
 
@@ -78,24 +101,72 @@ class HoroscopeAiWriter
         throw new RuntimeException('Sağlayıcı burç üretimi için desteklenmiyor.');
     }
 
-    private function prompt(CarbonInterface $date): string
+    private function prompt(CarbonInterface $date, bool $isRetry = false): string
     {
         $signs = collect(ZodiacSign::cases())->map(fn (ZodiacSign $sign): string => $sign->value.'='.$sign->label())->implode(', ');
 
-        return $date->format('d.m.Y').' tarihi için Türkçe günlük burç yorumları üret. Metinler birbirinden özgün, akıcı ve eğlence amaçlı olsun; kesin sağlık, yatırım veya kader iddiası verme. Her alan 2-3 anlamlı cümle içersin. traits alanında burcun temel özelliklerini, rising alanında yükselen etkisini açıkla. Yalnızca saf JSON döndür. Burçlar: '.$signs.'. Şema: {"forecasts":[{"sign":"aries","general":"...","traits":"...","rising":"...","love":"...","career":"...","money":"...","health":"...","lucky_color":"...","lucky_number":1}]}';
+        return ($isRetry ? 'Önceki yanıt biçim veya alan doğrulamasını geçemedi. Bu kez açıklama ve Markdown ekleme. ' : '')
+            .$date->format('d.m.Y').' tarihi için Türkçe günlük burç yorumları üret. Metinler birbirinden özgün, akıcı ve eğlence amaçlı olsun; kesin sağlık, yatırım veya kader iddiası verme. general, love, career, money ve health alanlarının her biri 1-2 kısa ama anlamlı cümle olsun. traits ve rising alanlarını tek kısa cümleyle yaz. Tam 12 burcu eksiksiz döndür. Yalnızca saf JSON döndür. Burçlar: '.$signs.'. Şema: {"forecasts":[{"sign":"aries","general":"...","traits":"...","rising":"...","love":"...","career":"...","money":"...","health":"...","lucky_color":"...","lucky_number":1}]}';
     }
 
     /** @return array<string, mixed> */
     private function decode(string $content): array
     {
         $clean = Str::of($content)->trim()->replaceMatches('/^```(?:json)?\s*|\s*```$/u', '')->toString();
-        $decoded = json_decode($clean, true);
+        $start = strpos($clean, '{');
+        $end = strrpos($clean, '}');
+        $json = $start === false || $end === false || $end < $start
+            ? $clean
+            : substr($clean, $start, $end - $start + 1);
+        $decoded = json_decode($json, true, 512, JSON_INVALID_UTF8_SUBSTITUTE);
 
         if (! is_array($decoded)) {
-            throw new RuntimeException('AI geçerli burç JSON verisi döndürmedi.');
+            throw new RuntimeException('AI geçerli burç JSON verisi döndürmedi: '.json_last_error_msg().'.');
+        }
+
+        if (array_is_list($decoded)) {
+            return ['forecasts' => $decoded];
+        }
+
+        if (isset($decoded['data']['forecasts']) && is_array($decoded['data']['forecasts'])) {
+            return ['forecasts' => $decoded['data']['forecasts']];
         }
 
         return $decoded;
+    }
+
+    /** @return array<string, mixed> */
+    private function responseSchema(): array
+    {
+        $text = ['type' => 'string', 'minLength' => 35];
+
+        return [
+            'type' => 'object',
+            'required' => ['forecasts'],
+            'properties' => [
+                'forecasts' => [
+                    'type' => 'array',
+                    'minItems' => 12,
+                    'maxItems' => 12,
+                    'items' => [
+                        'type' => 'object',
+                        'required' => ['sign', 'general', 'love', 'career', 'money', 'health', 'lucky_color', 'lucky_number'],
+                        'properties' => [
+                            'sign' => ['type' => 'string', 'enum' => collect(ZodiacSign::cases())->pluck('value')->all()],
+                            'general' => $text,
+                            'traits' => ['type' => 'string'],
+                            'rising' => ['type' => 'string'],
+                            'love' => $text,
+                            'career' => $text,
+                            'money' => $text,
+                            'health' => $text,
+                            'lucky_color' => ['type' => 'string'],
+                            'lucky_number' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 99],
+                        ],
+                    ],
+                ],
+            ],
+        ];
     }
 
     /** @param array<string, mixed> $payload @return array<string, array{general: string, love: string, career: string, money: string, health: string, lucky_color: string, lucky_number: int}> */

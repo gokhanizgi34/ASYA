@@ -121,7 +121,7 @@ class AutomaticArticleVisualManager
 
         return filled($sourcePageUrl)
             || filled($article->source_url)
-            || in_array($contentType, ['news', 'topic_ai', 'horoscope', 'recipe', 'special_day', 'campaign', 'column'], true);
+            || in_array($contentType, ['news', 'topic_ai', 'horoscope', 'horoscope_day', 'recipe', 'special_day', 'campaign', 'column'], true);
     }
 
     private function importSourceImage(
@@ -233,7 +233,7 @@ class AutomaticArticleVisualManager
         $category = (string) data_get($article->editorial_metadata, 'category', '');
         $title = Str::of($article->title)->stripTags()->replaceMatches('/[^\pL\pN\s-]+/u', ' ')->squish()->toString();
         $query = match ($contentType) {
-            'horoscope' => 'zodiac astrology horoscope constellation stars',
+            'horoscope', 'horoscope_day' => 'zodiac astrology horoscope constellation stars',
             'recipe' => 'Türk mutfağı yemek tabak '.$title,
             'special_day' => 'kutlama bayram etkinlik '.$title,
             'campaign' => 'kampanya etkinlik tanıtım '.$title,
@@ -243,7 +243,7 @@ class AutomaticArticleVisualManager
 
         return [
             'query' => Str::limit(Str::squish($query), 100, ''),
-            'language' => $contentType === 'horoscope' ? 'en' : 'tr',
+            'language' => in_array($contentType, ['horoscope', 'horoscope_day'], true) ? 'en' : 'tr',
         ];
     }
 
@@ -257,7 +257,7 @@ class AutomaticArticleVisualManager
         $articleTerms = $this->pixabayTerms($article->title.' '.(string) data_get($article->editorial_metadata, 'category', ''));
         $blockedTerms = ['animal', 'animals', 'wildlife', 'seal', 'sealion', 'fok', 'köpek', 'kedi', 'kuş', 'hayvan', 'zoo'];
         $requiredTerms = match ($contentType) {
-            'horoscope' => ['zodiac', 'astrology', 'horoscope', 'constellation', 'stars', 'astroloji', 'burç'],
+            'horoscope', 'horoscope_day' => ['zodiac', 'astrology', 'horoscope', 'constellation', 'stars', 'astroloji', 'burç'],
             'recipe' => ['food', 'meal', 'dish', 'cuisine', 'cooking', 'kitchen', 'dessert', 'soup', 'salad', 'yemek', 'mutfak', 'tarif', 'tabak'],
             'special_day' => ['celebration', 'holiday', 'festival', 'event', 'flag', 'kutlama', 'bayram', 'etkinlik'],
             'campaign' => ['campaign', 'event', 'shopping', 'sale', 'promotion', 'kampanya', 'etkinlik'],
@@ -275,7 +275,7 @@ class AutomaticArticleVisualManager
                 $height = (int) data_get($hit, 'imageHeight', 0);
                 $isLandscape = $height > 0 && ($width / $height) >= 1.15;
                 $isRelevant = match ($contentType) {
-                    'horoscope' => $hasRequiredContext,
+                    'horoscope', 'horoscope_day' => $hasRequiredContext,
                     'recipe', 'special_day', 'campaign' => $hasRequiredContext || $overlap > 0,
                     default => $overlap > 0,
                 };

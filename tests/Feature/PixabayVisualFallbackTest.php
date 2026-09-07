@@ -105,7 +105,7 @@ class PixabayVisualFallbackTest extends TestCase
             'keywords' => ['günlük burç yorumları'],
             'hashtags' => ['#Burçlar'],
             'category' => 'Burçlar',
-            'source_type' => 'horoscope',
+            'source_type' => 'horoscope_day',
             'source_id' => '2026-09-04',
             'destination' => 'publish',
         ]);

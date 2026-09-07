@@ -26,6 +26,22 @@ class NewsContentQualityGateTest extends TestCase
         $this->addToAssertionCount(1);
     }
 
+    public function test_concise_technology_development_with_belirtildi_is_accepted(): void
+    {
+        $agency = Agency::factory()->create();
+        $source = NewsSource::factory()->for($agency)->create(['source_type' => 'social']);
+        $rawNewsItem = RawNewsItem::factory()->for($agency)->for($source, 'newsSource')->create([
+            'source_name' => 'Boşuna Tıklama',
+            'source_url' => 'https://x.com/bosunatiklama/status/123456789',
+            'original_title' => "Apple'ın getireceği iPhone Handoff özelliğinin IMEI kaydının önüne geçemeyeceği belirtildi",
+            'original_body' => "Apple'ın getireceği iPhone Handoff özelliğinin IMEI kaydının önüne geçemeyeceği belirtildi. İki cihazda da ayrı SIM kartının tanımlı olması gerekiyor.",
+        ]);
+
+        app(NewsContentQualityGate::class)->assertRawNews($rawNewsItem);
+
+        $this->addToAssertionCount(1);
+    }
+
     public function test_repetitive_ai_filler_is_rejected(): void
     {
         $rawNewsItem = $this->rawNewsItem();

@@ -42,6 +42,39 @@ class NewsContentQualityGateTest extends TestCase
         $this->addToAssertionCount(1);
     }
 
+    public function test_concise_social_post_with_a_completed_action_is_accepted(): void
+    {
+        $agency = Agency::factory()->create();
+        $source = NewsSource::factory()->for($agency)->create(['source_type' => 'social']);
+        $rawNewsItem = RawNewsItem::factory()->for($agency)->for($source, 'newsSource')->create([
+            'source_name' => 'X Haber',
+            'source_url' => 'https://x.com/HVMHaber/status/2097050333813874698/video/1',
+            'original_title' => 'Melis İşiten ve Uraz Kaygılaroğlu, okula başlayan kızlarını birlikte okula götürdü',
+            'original_body' => 'Melis İşiten ve Uraz Kaygılaroğlu, okula başlayan kızlarını birlikte okula götürdü.',
+        ]);
+
+        app(NewsContentQualityGate::class)->assertRawNews($rawNewsItem);
+
+        $this->addToAssertionCount(1);
+    }
+
+    public function test_social_profile_description_without_an_event_is_rejected(): void
+    {
+        $agency = Agency::factory()->create();
+        $source = NewsSource::factory()->for($agency)->create(['source_type' => 'social']);
+        $rawNewsItem = RawNewsItem::factory()->for($agency)->for($source, 'newsSource')->create([
+            'source_name' => 'X Haber',
+            'source_url' => 'https://x.com/example',
+            'original_title' => 'X Haber resmî sosyal medya hesabı',
+            'original_body' => 'İstanbul gündemine ilişkin haber ve duyuruların paylaşıldığı kurumsal sosyal medya hesabıdır.',
+        ]);
+
+        $this->expectException(DomainException::class);
+        $this->expectExceptionMessage('doğrulanabilir bir olay');
+
+        app(NewsContentQualityGate::class)->assertRawNews($rawNewsItem);
+    }
+
     public function test_repetitive_ai_filler_is_rejected(): void
     {
         $rawNewsItem = $this->rawNewsItem();

@@ -37,7 +37,8 @@ class NewsContentQualityGate
             throw new DomainException('İçerik haber yerine reklam, satış veya spam metni içeriyor.');
         }
 
-        if (! $this->containsNewsSignal($newsText)) {
+        if (! $this->containsNewsSignal($newsText)
+            && ! ($this->isSocialSource($rawNewsItem) && $this->containsFiniteEventStatement($newsText))) {
             throw new DomainException('Metinde doğrulanabilir bir olay, karar, açıklama veya gelişme bulunamadı.');
         }
     }
@@ -103,6 +104,12 @@ class NewsContentQualityGate
     private function containsNewsSignal(string $text): bool
     {
         return preg_match('/başladı|açıldı|tamamlandı|düzenlendi|düzenledi|gerçekleştirildi|çaldı|diledi|duyurdu|açıkladı|bildirildi|belirtildi|paylaştı|mesajı|mesaj|tebrik|kutladı|sürüyor|devam ediyor|buluştu|katıldı|ziyaret etti|toplantı|koordinasyon|görüşme|karar|proje|çalışma|etkinlik|festival|operasyon|kaza|çarp(?:tı|ıştı)|yangın|gözaltı|hayatını kaybetti|yaralandı|kazandı|imzalandı|hizmete|başlayacak|hazırlanıyor|hazırlıyoruz|şampiyon|şampiyonluk|başarı|ödül|madalya|rekor/iu', $text) === 1;
+    }
+
+    private function containsFiniteEventStatement(string $text): bool
+    {
+        return count(preg_split('/\s+/u', $text) ?: []) >= 6
+            && preg_match('/\pL{3,}(?:dı|di|du|dü|tı|ti|tu|tü|mış|miş|muş|müş|yor|acak|ecek)(?:lar|ler)?\b/iu', $text) === 1;
     }
 
     private function plainText(string $value): string

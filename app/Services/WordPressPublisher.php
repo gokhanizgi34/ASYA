@@ -472,19 +472,11 @@ class WordPressPublisher
             return '';
         }
 
-        $videoUrl = 'https://x.com/'.$matches[1].'/status/'.$matches[2].'/video/1';
-        $attributes = json_encode([
-            'url' => $videoUrl,
-            'type' => 'rich',
-            'providerNameSlug' => 'twitter',
-            'responsive' => true,
-        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $embedUrl = 'https://platform.twitter.com/embed/Tweet.html?id='.$matches[2].'&dnt=true&lang=tr';
 
-        return '<!-- wp:embed '.$attributes.' -->'."\n"
-            .'<figure class="wp-block-embed is-type-rich is-provider-twitter wp-block-embed-twitter"><div class="wp-block-embed__wrapper">'."\n"
-            .e($videoUrl)."\n"
-            .'</div></figure>'."\n"
-            .'<!-- /wp:embed -->';
+        return '<div class="asya-x-video" style="display:flex;justify-content:center;margin:24px 0">'
+            .'<iframe src="'.e($embedUrl).'" title="X video paylaşımı" width="550" height="650" loading="lazy" scrolling="no" frameborder="0" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" style="width:100%;max-width:550px;border:0" allowfullscreen></iframe>'
+            .'</div>';
     }
 
     private function guardTargetUrl(string $url): void

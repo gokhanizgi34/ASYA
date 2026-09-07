@@ -97,8 +97,10 @@ class NewsFeedImporter
                     $existingContentIsInvalid = true;
                 }
 
+                $addsMissingImage = blank($existingItem->original_image_url) && filled($item['image_url']);
+
                 if ($existingItem->trashed()
-                    || (! $existingContentIsInvalid && $newBodyLength < max(350, (int) ($existingBodyLength * 1.25)))) {
+                    || (! $existingContentIsInvalid && ! $addsMissingImage && $newBodyLength < max(350, (int) ($existingBodyLength * 1.25)))) {
                     $skipped++;
 
                     continue;

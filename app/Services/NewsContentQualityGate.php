@@ -102,7 +102,7 @@ class NewsContentQualityGate
 
     private function containsNewsSignal(string $text): bool
     {
-        return preg_match('/başladı|açıldı|tamamlandı|düzenlendi|düzenledi|gerçekleştirildi|duyurdu|açıkladı|bildirildi|paylaştı|mesajı|mesaj|tebrik|kutladı|sürüyor|devam ediyor|buluştu|katıldı|ziyaret etti|toplantı|koordinasyon|görüşme|karar|proje|çalışma|etkinlik|festival|operasyon|kaza|çarp(?:tı|ıştı)|yangın|gözaltı|hayatını kaybetti|yaralandı|kazandı|imzalandı|hizmete|başlayacak|hazırlanıyor|hazırlıyoruz/iu', $text) === 1;
+        return preg_match('/başladı|açıldı|tamamlandı|düzenlendi|düzenledi|gerçekleştirildi|çaldı|diledi|duyurdu|açıkladı|bildirildi|paylaştı|mesajı|mesaj|tebrik|kutladı|sürüyor|devam ediyor|buluştu|katıldı|ziyaret etti|toplantı|koordinasyon|görüşme|karar|proje|çalışma|etkinlik|festival|operasyon|kaza|çarp(?:tı|ıştı)|yangın|gözaltı|hayatını kaybetti|yaralandı|kazandı|imzalandı|hizmete|başlayacak|hazırlanıyor|hazırlıyoruz/iu', $text) === 1;
     }
 
     private function plainText(string $value): string

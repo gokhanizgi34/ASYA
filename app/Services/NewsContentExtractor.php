@@ -604,7 +604,9 @@ class NewsContentExtractor
             return null;
         }
 
-        $image = $this->meta($xpath, 'property', 'og:image')
+        $image = $this->xMediaImageFromHtml($url, $html)
+            ?: $this->xPostImage($url)
+            ?: $this->meta($xpath, 'property', 'og:image')
             ?: $this->meta($xpath, 'name', 'twitter:image')
             ?: $this->jsonLdArticleImage($xpath)
             ?: $this->domArticleImage($xpath);
@@ -613,6 +615,75 @@ class NewsContentExtractor
             ?: $this->attribute($xpath, '//time[@datetime][1]', 'datetime');
 
         return $this->item($url, $title, $body, $url, $this->nullableUrl($url, $image), $date);
+    }
+
+    private function xPostImage(string $url): string
+    {
+        $postUrl = $this->xPostUrl($url);
+
+        if ($postUrl === null) {
+            return '';
+        }
+
+        foreach (range(1, 6) as $photoNumber) {
+            $photoUrl = $postUrl.'/photo/'.$photoNumber;
+            $response = $this->tryFetch($photoUrl);
+
+            if (! $response || ! $response->successful()) {
+                continue;
+            }
+
+            $image = $this->xMediaImageFromHtml($photoUrl, $response->body());
+
+            if ($image !== '') {
+                return $image;
+            }
+        }
+
+        return '';
+    }
+
+    private function xPostUrl(string $url): ?string
+    {
+        $host = Str::lower((string) parse_url($url, PHP_URL_HOST));
+        $path = (string) parse_url($url, PHP_URL_PATH);
+
+        if (! in_array($host, ['x.com', 'www.x.com', 'twitter.com', 'www.twitter.com'], true)
+            || preg_match('~^/([^/]+)/status/(\d+)~', $path, $matches) !== 1) {
+            return null;
+        }
+
+        return 'https://'.$host.'/'.$matches[1].'/status/'.$matches[2];
+    }
+
+    private function xMediaImageFromHtml(string $url, string $html): string
+    {
+        if ($this->xPostUrl($url) === null) {
+            return '';
+        }
+
+        $decodedHtml = html_entity_decode(str_replace(['\\u002F', '\\/'], '/', $html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $xpath = $this->xpath($decodedHtml);
+        $candidates = [
+            $xpath ? $this->meta($xpath, 'property', 'og:image') : '',
+            $xpath ? $this->meta($xpath, 'name', 'twitter:image') : '',
+        ];
+
+        if (preg_match_all('~https://pbs\.twimg\.com/media/[^\s"\'<>]+~iu', $decodedHtml, $matches) > 0) {
+            $candidates = [...$candidates, ...$matches[0]];
+        }
+
+        foreach ($candidates as $candidate) {
+            $candidate = trim((string) $candidate);
+            $host = Str::lower((string) parse_url($candidate, PHP_URL_HOST));
+            $path = (string) parse_url($candidate, PHP_URL_PATH);
+
+            if ($host === 'pbs.twimg.com' && str_starts_with($path, '/media/')) {
+                return $candidate;
+            }
+        }
+
+        return '';
     }
 
     private function domArticleImage(DOMXPath $xpath): string

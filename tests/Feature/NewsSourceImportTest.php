@@ -104,6 +104,41 @@ XML;
         $this->assertNull($existing->processed_at);
     }
 
+    public function test_existing_item_is_refreshed_when_a_new_extraction_adds_its_missing_image(): void
+    {
+        Http::preventStrayRequests();
+        $title = 'Ali Tombaş öğrenciler için ilk ders zilini paylaştı';
+        $articleUrl = 'https://93.184.216.34/haber/okul';
+        $body = 'Anaokulu ve birinci sınıf öğrencileri için ilk ders zili çaldı. Ali Tombaş öğrencilere ve öğretmenlere başarılarla dolu bir eğitim dönemi diledi.';
+        $imageUrl = 'https://pbs.twimg.com/media/example-photo?format=jpg&name=large';
+        Http::fake([
+            'https://93.184.216.34/news.json' => Http::response([
+                'articles' => [[
+                    'id' => 'x-school',
+                    'title' => $title,
+                    'body' => $body,
+                    'url' => $articleUrl,
+                    'image' => $imageUrl,
+                    'published_at' => '2026-08-30T10:00:00+03:00',
+                ]],
+            ], 200, ['Content-Type' => 'application/json']),
+        ]);
+        $agency = Agency::factory()->create();
+        $editor = User::factory()->editor()->for($agency)->create();
+        $source = NewsSource::factory()->for($agency)->create(['feed_url' => 'https://93.184.216.34/news.json']);
+        $existing = RawNewsItem::factory()->for($agency)->create([
+            'news_source_id' => $source->id,
+            'source_url' => $articleUrl,
+            'original_title' => $title,
+            'original_body' => $body,
+            'original_image_url' => null,
+        ]);
+
+        $this->actingAs($editor)->post(route('source-trust.sources.import', $source))->assertRedirect()->assertSessionHas('success');
+
+        $this->assertSame($imageUrl, $existing->refresh()->original_image_url);
+    }
+
     public function test_html_news_page_automatically_discovers_and_saves_wordpress_feed(): void
     {
         Http::preventStrayRequests();

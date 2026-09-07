@@ -100,6 +100,20 @@ class NewsPipelineGuardTest extends TestCase
         $this->addToAssertionCount(1);
     }
 
+    public function test_school_bell_social_post_is_accepted_as_a_news_event(): void
+    {
+        $item = RawNewsItem::factory()->make([
+            'source_name' => 'Ali Tombaş',
+            'source_url' => 'https://x.com/alitombastr/status/2096851618465550436',
+            'original_title' => 'Anaokulu ve birinci sınıf öğrencileri için ilk ders zili çaldı',
+            'original_body' => 'Bu sabah eğitim hayatına ilk adımı atan öğrenciler için ilk ders zili çaldı. Ali Tombaş öğrencilere ve öğretmenlere başarılarla dolu bir eğitim dönemi diledi.',
+        ]);
+
+        app(NewsContentQualityGate::class)->assertRawNews($item);
+
+        $this->addToAssertionCount(1);
+    }
+
     public function test_real_news_with_a_cookie_banner_suffix_is_accepted(): void
     {
         $item = RawNewsItem::factory()->make([

@@ -472,10 +472,10 @@ class WordPressPublisher
             return '';
         }
 
-        $embedUrl = 'https://platform.twitter.com/embed/Tweet.html?id='.$matches[2].'&dnt=true&lang=tr';
+        $embedUrl = 'https://twitter.com/i/videos/tweet/'.$matches[2];
 
-        return '<div class="asya-x-video" style="display:flex;justify-content:center;margin:24px 0">'
-            .'<iframe src="'.e($embedUrl).'" title="X video paylaşımı" width="550" height="650" loading="lazy" scrolling="no" frameborder="0" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" style="width:100%;max-width:550px;border:0" allowfullscreen></iframe>'
+        return '<div class="asya-x-video" style="margin:24px auto;max-width:900px">'
+            .'<iframe src="'.e($embedUrl).'" title="Haber videosu" loading="lazy" scrolling="no" frameborder="0" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" style="display:block;width:100%;aspect-ratio:16/9;border:0" allowfullscreen></iframe>'
             .'</div>';
     }
 

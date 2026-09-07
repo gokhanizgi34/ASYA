@@ -55,7 +55,7 @@ class WordPressPublisherTest extends TestCase
         $this->assertDatabaseHas('learned_routes', ['agency_id' => $publication->agency_id, 'path_pattern' => '/wp-json/wp/v2/posts', 'method' => 'POST', 'successful_count' => 1]);
     }
 
-    public function test_rest_driver_embeds_an_x_video_post_without_downloading_the_video(): void
+    public function test_rest_driver_embeds_only_the_x_video_player_without_the_tweet_frame(): void
     {
         Storage::fake('public');
         Storage::disk('public')->put('visuals/test.jpg', 'image-content');
@@ -80,7 +80,8 @@ class WordPressPublisherTest extends TestCase
         Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
             && str_ends_with($request->url(), '/posts')
             && str_contains((string) data_get($request->data(), 'content'), '<iframe')
-            && str_contains((string) data_get($request->data(), 'content'), 'https://platform.twitter.com/embed/Tweet.html?id=2097004425772474609')
+            && str_contains((string) data_get($request->data(), 'content'), 'https://twitter.com/i/videos/tweet/2097004425772474609')
+            && ! str_contains((string) data_get($request->data(), 'content'), 'platform.twitter.com/embed/Tweet.html')
             && ! str_contains((string) data_get($request->data(), 'content'), '/video/1')
             && ! str_contains((string) data_get($request->data(), 'content'), '<script'));
         Http::assertSentCount(3);
@@ -92,7 +93,7 @@ class WordPressPublisherTest extends TestCase
         Storage::disk('public')->put('visuals/test.jpg', 'image-content');
         $publication = $this->publication();
         $publication->article->update([
-            'source_url' => 'https://x.com/alitombastr/status/2096851618465550436',
+            'source_url' => 'https://x.com/alitombastr/status/2096851618465550436/photo/1',
         ]);
         Http::preventStrayRequests();
         Http::fake(function (Request $request) {

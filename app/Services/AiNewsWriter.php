@@ -125,14 +125,35 @@ class AiNewsWriter
         $response = $this->baseRequest($integration)
             ->withQueryParameters(['key' => (string) $integration->credential])
             ->post($url, [
-                'generationConfig' => ['responseMimeType' => 'application/json', 'temperature' => 0.2, 'maxOutputTokens' => $this->maxOutputTokens($rawNewsItem->agency_id)],
+                'generationConfig' => ['responseMimeType' => 'application/json', 'responseJsonSchema' => $this->newsSchema(), 'temperature' => 0.2, 'maxOutputTokens' => $this->maxOutputTokens($rawNewsItem->agency_id)],
                 'systemInstruction' => ['parts' => [['text' => $this->systemPrompt($promptSnapshot)]]],
                 'contents' => [['role' => 'user', 'parts' => [['text' => $this->userPrompt($rawNewsItem, $promptSnapshot)]]]],
             ]);
 
         $response->throw();
 
-        return (string) data_get($response->json(), 'candidates.0.content.parts.0.text', '');
+        return collect(data_get($response->json(), 'candidates.0.content.parts', []))
+            ->pluck('text')
+            ->filter(fn (mixed $part): bool => is_string($part))
+            ->implode('');
+    }
+
+    /** @return array<string, mixed> */
+    private function newsSchema(): array
+    {
+        return [
+            'type' => 'object',
+            'required' => ['title', 'summary', 'body', 'focus_keyword', 'keywords', 'hashtags', 'category'],
+            'properties' => [
+                'title' => ['type' => 'string'],
+                'summary' => ['type' => 'string'],
+                'body' => ['type' => 'string'],
+                'focus_keyword' => ['type' => 'string'],
+                'keywords' => ['type' => 'array', 'maxItems' => 10, 'items' => ['type' => 'string']],
+                'hashtags' => ['type' => 'array', 'maxItems' => 5, 'items' => ['type' => 'string']],
+                'category' => ['type' => 'string'],
+            ],
+        ];
     }
 
     private function baseRequest(ApiIntegration $integration): PendingRequest

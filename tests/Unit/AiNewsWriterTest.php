@@ -244,6 +244,50 @@ class AiNewsWriterTest extends TestCase
         Http::assertSent(fn (Request $request): bool => ! str_contains((string) data_get($request->data(), 'messages.1.content'), 'Official X Account'));
     }
 
+    public function test_gemini_joins_all_response_parts_and_requests_a_news_json_schema(): void
+    {
+        Http::preventStrayRequests();
+        $json = json_encode([
+            'title' => 'İstanbul ulaşımında yeni uygulama başladı',
+            'summary' => 'İstanbul ulaşımındaki yeni uygulamanın kapsamı ve vatandaşlara etkisine ilişkin güncel ayrıntılar açıklandı.',
+            'body' => $this->istanbulGeneratedBody(),
+            'focus_keyword' => 'İstanbul ulaşım uygulaması',
+            'keywords' => ['İstanbul ulaşım', 'toplu taşıma'],
+            'hashtags' => ['#İstanbulUlaşım'],
+            'category' => 'Yerel Haberler',
+        ], JSON_UNESCAPED_UNICODE);
+        $splitAt = intdiv(strlen((string) $json), 2);
+        Http::fake([
+            'https://93.184.216.34/v1beta/models/gemini-2.5-flash:generateContent*' => Http::response([
+                'candidates' => [['content' => ['parts' => [
+                    ['text' => substr((string) $json, 0, $splitAt)],
+                    ['text' => substr((string) $json, $splitAt)],
+                ]]]],
+            ]),
+        ]);
+        $agency = Agency::factory()->create();
+        ApiIntegration::factory()->for($agency)->create([
+            'provider' => IntegrationProvider::GoogleGemini,
+            'model' => 'gemini-2.5-flash',
+            'base_url' => 'https://93.184.216.34/v1beta/models',
+            'auth_type' => IntegrationAuthType::None,
+            'credential' => 'gemini-key',
+            'is_active' => true,
+            'is_default' => true,
+        ]);
+        $rawNewsItem = RawNewsItem::factory()->for($agency)->create([
+            'original_title' => 'İstanbul ulaşımında yeni uygulama başladı',
+            'original_body' => $this->istanbulSourceBody(),
+        ]);
+
+        $result = app(AiNewsWriter::class)->write($rawNewsItem, ['target_length' => 600]);
+
+        $this->assertSame('İstanbul ulaşımında yeni uygulama başladı', $result['title']);
+        Http::assertSent(fn (Request $request): bool => data_get($request->data(), 'generationConfig.responseJsonSchema.required') === [
+            'title', 'summary', 'body', 'focus_keyword', 'keywords', 'hashtags', 'category',
+        ]);
+    }
+
     public function test_gemini_is_tried_first_and_quota_error_falls_back_to_next_ai(): void
     {
         Http::preventStrayRequests();

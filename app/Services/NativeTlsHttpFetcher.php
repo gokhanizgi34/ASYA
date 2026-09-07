@@ -85,9 +85,9 @@ class NativeTlsHttpFetcher
                 '--silent',
                 '--show-error',
                 '--connect-timeout',
-                '8',
+                (string) max(1, (int) config('news_ingestion.connect_timeout_seconds', 60)),
                 '--max-time',
-                '20',
+                (string) max(1, (int) config('news_ingestion.request_timeout_seconds', 60)),
                 '--max-filesize',
                 (string) $maxBodyBytes,
                 '--tlsv1.2',
@@ -117,7 +117,7 @@ class NativeTlsHttpFetcher
 
             $command[] = $url;
             $process = new Process($command);
-            $process->setTimeout(25);
+            $process->setTimeout(max(5, (int) config('news_ingestion.request_timeout_seconds', 60) + 5));
 
             try {
                 $process->mustRun();

@@ -149,8 +149,8 @@ class NewsContentExtractor
         try {
             $request = Http::accept($accept)
                 ->withUserAgent($userAgent)
-                ->connectTimeout(8)
-                ->timeout(20);
+                ->connectTimeout(max(1, (int) config('news_ingestion.connect_timeout_seconds', 60)))
+                ->timeout(max(1, (int) config('news_ingestion.request_timeout_seconds', 60)));
             $caBundle = $this->nativeTlsFetcher->caBundlePath();
 
             if ($this->allowInsecureTls) {

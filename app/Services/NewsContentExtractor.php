@@ -648,8 +648,7 @@ class NewsContentExtractor
                 continue;
             }
 
-            $text = $this->decodeXString($match[2]);
-            $text = trim(preg_replace('~https://t\.co/[A-Za-z0-9]+~u', '', $text) ?? $text);
+            $text = $this->cleanXPostText($this->decodeXString($match[2]));
 
             if (Str::length($text) < 20) {
                 continue;
@@ -681,6 +680,14 @@ class NewsContentExtractor
         return array_slice(array_values($items), 0, self::MAX_CRAWL_PAGES);
     }
 
+    private function cleanXPostText(string $text): string
+    {
+        $text = preg_replace('~https://t\.co/[A-Za-z0-9]+~u', '', $text) ?? $text;
+        $text = preg_replace('/\s*(?:[\p{So}\p{Sk}\x{FE0F}]\s*)*(?:@[A-Za-z0-9_]+\s*)+$/u', '', $text) ?? $text;
+
+        return trim($text);
+    }
+
     private function xTimelineTitle(string $text): string
     {
         $paragraphs = preg_split('/\R{2,}/u', $text, -1, PREG_SPLIT_NO_EMPTY) ?: [];
@@ -708,7 +715,15 @@ class NewsContentExtractor
         $name = trim((string) preg_replace("/[^\p{L}\p{N}\s.'’\-]/u", '', $name));
         $name = Str::squish($name);
 
-        if ($name === '' || $profileDescription === '') {
+        if ($name === '') {
+            return null;
+        }
+
+        if (preg_match('/\b(?:Belediyesi|Bakanlığı|Valiliği|Kaymakamlığı|Başkanlığı|Müdürlüğü|Üniversitesi|Kulübü)\b/iu', $name) === 1) {
+            return $name;
+        }
+
+        if ($profileDescription === '') {
             return null;
         }
 

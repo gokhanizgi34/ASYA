@@ -472,9 +472,9 @@ class WordPressPublisher
             return '';
         }
 
-        $postUrl = 'https://x.com/'.$matches[1].'/status/'.$matches[2];
+        $videoUrl = 'https://x.com/'.$matches[1].'/status/'.$matches[2].'/video/1';
         $attributes = json_encode([
-            'url' => $postUrl,
+            'url' => $videoUrl,
             'type' => 'rich',
             'providerNameSlug' => 'twitter',
             'responsive' => true,
@@ -482,7 +482,7 @@ class WordPressPublisher
 
         return '<!-- wp:embed '.$attributes.' -->'."\n"
             .'<figure class="wp-block-embed is-type-rich is-provider-twitter wp-block-embed-twitter"><div class="wp-block-embed__wrapper">'."\n"
-            .e($postUrl)."\n"
+            .e($videoUrl)."\n"
             .'</div></figure>'."\n"
             .'<!-- /wp:embed -->';
     }

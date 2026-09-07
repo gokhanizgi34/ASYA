@@ -71,6 +71,22 @@ class NewsContentQualityGateTest extends TestCase
         $this->addToAssertionCount(1);
     }
 
+    public function test_social_championship_caption_passes_the_raw_news_gate(): void
+    {
+        $agency = Agency::factory()->create();
+        $source = NewsSource::factory()->for($agency)->create(['source_type' => 'social']);
+        $rawNewsItem = RawNewsItem::factory()->for($agency)->for($source, 'newsSource')->create([
+            'source_name' => 'X Ümraniye Belediyesi',
+            'source_url' => 'https://x.com/umraniyebeltr/status/2096892641073922439',
+            'original_title' => 'Ümraniye Belediyesi Avrupa Şampiyonu sporcumuz Mustafa Abacıoğlu’nun başarı hikâyesi',
+            'original_body' => 'Paylaşımı yapan: Ümraniye Belediyesi. Avrupa Şampiyonu sporcumuz Mustafa Abacıoğlu’nun başarıya uzanan ve ilham veren hikâyesi anlatıldı.',
+        ]);
+
+        app(NewsContentQualityGate::class)->assertRawNews($rawNewsItem);
+
+        $this->addToAssertionCount(1);
+    }
+
     public function test_coherent_grounded_agency_story_passes_quality_gate(): void
     {
         $rawNewsItem = $this->rawNewsItem();

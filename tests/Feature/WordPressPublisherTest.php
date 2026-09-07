@@ -81,10 +81,37 @@ class WordPressPublisherTest extends TestCase
             && str_ends_with($request->url(), '/posts')
             && str_contains((string) data_get($request->data(), 'content'), '<!-- wp:embed')
             && str_contains((string) data_get($request->data(), 'content'), '"providerNameSlug":"twitter"')
-            && str_contains((string) data_get($request->data(), 'content'), 'https://x.com/umraniyebeltr/status/2097004425772474609')
-            && ! str_contains((string) data_get($request->data(), 'content'), '/video/1')
+            && str_contains((string) data_get($request->data(), 'content'), 'https://x.com/umraniyebeltr/status/2097004425772474609/video/1')
             && ! str_contains((string) data_get($request->data(), 'content'), '<script'));
         Http::assertSentCount(3);
+    }
+
+    public function test_rest_driver_does_not_embed_a_normal_x_photo_post(): void
+    {
+        Storage::fake('public');
+        Storage::disk('public')->put('visuals/test.jpg', 'image-content');
+        $publication = $this->publication();
+        $publication->article->update([
+            'source_url' => 'https://x.com/alitombastr/status/2096851618465550436',
+        ]);
+        Http::preventStrayRequests();
+        Http::fake(function (Request $request) {
+            if ($request->method() === 'GET') {
+                return Http::response([]);
+            }
+            if (str_ends_with($request->url(), '/media')) {
+                return Http::response(['id' => 45], 201);
+            }
+
+            return Http::response(['id' => 91, 'link' => 'https://news.example.com/test-haberi'], 201);
+        });
+
+        app(WordPressPublisher::class)->publish($publication);
+
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
+            && str_ends_with($request->url(), '/posts')
+            && ! str_contains((string) data_get($request->data(), 'content'), '<!-- wp:embed')
+            && ! str_contains((string) data_get($request->data(), 'content'), 'x.com/alitombastr/status'));
     }
 
     public function test_rest_cannot_create_error_explains_wordpress_permission_requirement(): void

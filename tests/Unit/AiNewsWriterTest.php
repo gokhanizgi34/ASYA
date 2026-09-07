@@ -223,6 +223,27 @@ class AiNewsWriterTest extends TestCase
         $this->assertStringNotContainsString('example.', $result['title'].' '.$result['summary'].' '.$result['body'].' '.implode(' ', $result['keywords']));
     }
 
+    public function test_x_profile_boilerplate_is_removed_from_prompt_and_generated_news(): void
+    {
+        $boilerplate = 'Official X Account of Ümraniye Municipality - Belediye Başkanı Ümraniye Belediyesi';
+        Http::fake(['https://93.184.216.34/v1/chat/completions' => Http::response(['choices' => [['message' => ['content' => json_encode([
+            'title' => $boilerplate.' Mustafa Abacıoğlu Avrupa şampiyonu oldu',
+            'summary' => $boilerplate.' sporcunun başarı hikâyesi anlatıldı.',
+            'body' => $boilerplate.'. '.$this->istanbulGeneratedBody(),
+        ], JSON_UNESCAPED_UNICODE)]]]])]);
+        $agency = Agency::factory()->create();
+        ApiIntegration::factory()->for($agency)->create(['provider' => IntegrationProvider::OpenAi, 'base_url' => 'https://93.184.216.34/v1/models', 'credential' => 'agency-key', 'is_active' => true]);
+        $rawNewsItem = RawNewsItem::factory()->for($agency)->create([
+            'original_title' => $boilerplate.' Avrupa Şampiyonu sporcumuz Mustafa Abacıoğlu',
+            'original_body' => 'Paylaşımı yapan: '.$boilerplate.'. Avrupa Şampiyonu sporcumuz Mustafa Abacıoğlu’nun başarı hikâyesi.',
+        ]);
+
+        $result = app(AiNewsWriter::class)->write($rawNewsItem, ['target_length' => 600]);
+
+        $this->assertStringNotContainsString('Official X Account', $result['title'].' '.$result['summary'].' '.$result['body']);
+        Http::assertSent(fn (Request $request): bool => ! str_contains((string) data_get($request->data(), 'messages.1.content'), 'Official X Account'));
+    }
+
     public function test_gemini_is_tried_first_and_quota_error_falls_back_to_next_ai(): void
     {
         Http::preventStrayRequests();

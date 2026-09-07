@@ -759,9 +759,22 @@ class NewsContentExtractor
 
     private function xTimelineVideoUrl(string $html, string $tweetKey, string $postUrl): ?string
     {
-        $pattern = '~"client:'.preg_quote($tweetKey, '~').':media_entities2:\d+"[\s\S]{0,6000}?(?:type:"video"|video_info:)~u';
+        $marker = '"client:'.$tweetKey.':media_entities2:';
+        $offset = 0;
 
-        return preg_match($pattern, $html) === 1 ? $postUrl.'/video/1' : null;
+        while (($start = strpos($html, $marker, $offset)) !== false) {
+            $nextClient = strpos($html, '"client:', $start + strlen($marker));
+            $length = $nextClient === false ? 6000 : min(6000, $nextClient - $start);
+            $mediaBlock = substr($html, $start, $length);
+
+            if (str_contains($mediaBlock, 'type:"video"') || str_contains($mediaBlock, 'video_info:')) {
+                return $postUrl.'/video/1';
+            }
+
+            $offset = $start + strlen($marker);
+        }
+
+        return null;
     }
 
     private function xVideoUrl(string $url, string $html): ?string
@@ -778,7 +791,13 @@ class NewsContentExtractor
 
         $decodedHtml = html_entity_decode(str_replace(['\\u002F', '\\/'], '/', $html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
-        return preg_match('~(?:type:"video"|video_info:)~u', $decodedHtml) === 1 ? $postUrl.'/video/1' : null;
+        $path = (string) parse_url($postUrl, PHP_URL_PATH);
+
+        if (preg_match('~/status/(\d+)$~', $path, $matches) !== 1) {
+            return null;
+        }
+
+        return $this->xTimelineVideoUrl($decodedHtml, base64_encode('Tweet:'.$matches[1]), $postUrl);
     }
 
     private function decodeXString(string $value): string

@@ -16,7 +16,7 @@ class XPostImageExtractionTest extends TestCase
         $postUrl = 'https://x.com/alitombastr/status/2096851618465550436';
         $imageUrl = 'https://pbs.twimg.com/media/example-photo?format=jpg&name=large';
         $articleHtml = <<<'HTML'
-<html><body><article><h1>Öğrenciler için ilk ders zili çaldı</h1><p>Bu sabah eğitim hayatına ilk adımı atan anaokulu ve birinci sınıf öğrencileri için ilk ders zili çaldı.</p><p>Öğrenciler büyük bir heyecanla okullarının yolunu tutarken öğretmenler yeni eğitim dönemi için hazırlıklarını tamamladı.</p><p>Ali Tombaş öğrencilere ve öğretmenlere başarılarla dolu bir eğitim dönemi diledi.</p></article></body></html>
+<html><body><article><h1>Öğrenciler için ilk ders zili çaldı</h1><p>Bu sabah eğitim hayatına ilk adımı atan anaokulu ve birinci sınıf öğrencileri için ilk ders zili çaldı.</p><p>Öğrenciler büyük bir heyecanla okullarının yolunu tutarken öğretmenler yeni eğitim dönemi için hazırlıklarını tamamladı.</p><p>Ali Tombaş öğrencilere ve öğretmenlere başarılarla dolu bir eğitim dönemi diledi.</p></article><script>"client:VHdlZXQ6OTk5OTk5OTk5OTk5OTk5OTk5OQ==:media_entities2:0":$R[9]={type:"video",video_info:{}}</script></body></html>
 HTML;
         Http::fake(function (Request $request) use ($postUrl, $imageUrl, $articleHtml) {
             return match ($request->url()) {
@@ -33,6 +33,7 @@ HTML;
         $result = app(NewsContentExtractor::class)->extract($postUrl, 1);
 
         $this->assertCount(1, $result['items']);
+        $this->assertSame($postUrl, $result['items'][0]['url']);
         $this->assertSame($imageUrl, $result['items'][0]['image_url']);
         Http::assertSent(fn (Request $request): bool => $request->url() === $postUrl.'/photo/1');
         Http::assertSent(fn (Request $request): bool => $request->url() === $postUrl.'/photo/2');
@@ -49,7 +50,8 @@ HTML;
         $createdAtMs = now()->subMinute()->timestamp * 1000;
         $html = '<html><head><meta property="og:title" content="Ali Tombaş 🇹🇷 (@alitombastr) on X"><meta property="og:description" content="Sultanbeyli Belediye Başkanı"></head><body><script>'
             .'"client:'.$tweetKey.':details":$R[1]={__id:"details",__typename:"TBirdData",full_text:"AK Parti Grup Toplantımızı, İlçe Başkanımız Sn. Ayhan Üşdi ile birlikte gerçekleştirdik.\\n\\nSultanbeyli için birlik ve beraberlik ruhuyla çalışmalarımıza devam ediyoruz. https://t.co/4V0szzcP5U",created_at_ms:'.$createdAtMs.'},'
-            .'"client:'.$tweetKey.':media_entities2:0":$R[2]={__typename:"ApiMediaEntity",media_url_https:"'.$imageUrl.'",type:"photo"}'
+            .'"client:'.$tweetKey.':media_entities2:0":$R[2]={__typename:"ApiMediaEntity",media_url_https:"'.$imageUrl.'",type:"photo"},'
+            .'"client:'.base64_encode('Tweet:9999999999999999999').':media_entities2:0":$R[9]={__typename:"ApiMediaEntity",type:"video",video_info:{}}'
             .'</script></body></html>';
         Http::fake([$profileUrl => Http::response($html, 200, ['Content-Type' => 'text/html'])]);
         $this->mock(ExternalUrlGuard::class, function ($mock): void {

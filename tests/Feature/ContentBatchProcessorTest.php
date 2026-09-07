@@ -11,6 +11,7 @@ use App\Jobs\ProcessContentBatch;
 use App\Models\Agency;
 use App\Models\AiPrompt;
 use App\Models\ApiIntegration;
+use App\Models\Article;
 use App\Models\ContentBatch;
 use App\Models\ContentBatchItem;
 use App\Models\RawNewsItem;
@@ -20,6 +21,7 @@ use App\Services\ContentBatchProcessor;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class ContentBatchProcessorTest extends TestCase
@@ -47,6 +49,60 @@ class ContentBatchProcessorTest extends TestCase
         $this->assertDatabaseCount('articles', 2);
         $this->assertSame(2, RawNewsItem::query()->where('status', RawNewsStatus::Processed)->count());
         $this->assertSame(2, ContentBatchItem::query()->where('status', ContentBatchItemStatus::Completed)->count());
+    }
+
+    public function test_processor_reuses_an_existing_article_for_the_same_raw_news_slug(): void
+    {
+        $agency = Agency::factory()->create();
+        $editor = User::factory()->editor()->for($agency)->create();
+        $prompt = AiPrompt::factory()->global()->create();
+        $rawNews = RawNewsItem::factory()->for($agency)->create([
+            'original_title' => 'Bakırköy’de 30 Ağustos coşkusu spor ve konserle kutlandı',
+            'original_body' => $this->sourceBody(),
+        ]);
+        $slug = Str::slug($rawNews->original_title).'-raw-'.$rawNews->id;
+        $existingArticle = Article::factory()->for($agency)->create([
+            'author_id' => $editor->id,
+            'slug' => $slug,
+        ]);
+        $batch = $this->batch($agency, $editor, $prompt, [$rawNews]);
+
+        app(ContentBatchProcessor::class)->process($batch->id);
+
+        $item = $batch->items()->firstOrFail();
+        $this->assertSame($existingArticle->id, $item->article_id);
+        $this->assertSame(ContentBatchItemStatus::Completed, $item->status);
+        $this->assertSame(RawNewsStatus::Processed, $rawNews->fresh()->status);
+        $this->assertDatabaseCount('articles', 1);
+    }
+
+    public function test_processor_creates_a_retry_slug_when_the_prior_article_was_deleted(): void
+    {
+        $agency = Agency::factory()->create();
+        $editor = User::factory()->editor()->for($agency)->create();
+        $prompt = AiPrompt::factory()->global()->create();
+        $rawNews = RawNewsItem::factory()->for($agency)->create([
+            'original_title' => 'Bakırköy’de 30 Ağustos coşkusu spor ve konserle kutlandı',
+            'original_body' => $this->sourceBody(),
+        ]);
+        $preferredSlug = Str::slug($rawNews->original_title).'-raw-'.$rawNews->id;
+        $deletedArticle = Article::factory()->for($agency)->create([
+            'author_id' => $editor->id,
+            'slug' => $preferredSlug,
+        ]);
+        $deletedArticle->delete();
+        $batch = $this->batch($agency, $editor, $prompt, [$rawNews]);
+
+        app(ContentBatchProcessor::class)->process($batch->id);
+
+        $item = $batch->items()->firstOrFail();
+        $article = $item->article;
+        $this->assertNotNull($article);
+        $this->assertSame($preferredSlug.'-retry-'.$item->id, $article->slug);
+        $this->assertSame(ContentBatchItemStatus::Completed, $item->status);
+        $this->assertSame(RawNewsStatus::Processed, $rawNews->fresh()->status);
+        $this->assertSoftDeleted($deletedArticle);
+        $this->assertSame(2, Article::withTrashed()->count());
     }
 
     public function test_processor_marks_partial_result_when_one_item_has_insufficient_content(): void

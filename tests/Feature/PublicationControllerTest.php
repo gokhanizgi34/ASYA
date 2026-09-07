@@ -44,6 +44,9 @@ class PublicationControllerTest extends TestCase
         Storage::fake('public');
         Queue::fake([PublishArticleToWordPress::class]);
         [$agency, $owner, $article, $target] = $this->eligibleArticleAndTarget();
+        $fullTitle = 'İstanbul Tuzla’da doktor bıçaklandı: Saldırgan hastaneye kaldırıldı';
+        $article->update(['title' => $fullTitle]);
+        $article->seoAnalysis()->update(['meta_title' => 'İstanbul Tuzla’da doktor bıçaklandı: Saldırgan hastanede']);
 
         $response = $this->actingAs($owner)->post(route('publications.store'), [
             'agency_id' => $agency->id,
@@ -58,7 +61,7 @@ class PublicationControllerTest extends TestCase
         $publication = Publication::query()->firstOrFail();
         $response->assertRedirect(route('publications.show', $publication));
         $this->assertSame(PublicationStatus::Queued, $publication->status);
-        $this->assertSame($article->seoAnalysis->meta_title, data_get($publication->payload, 'title'));
+        $this->assertSame($fullTitle, data_get($publication->payload, 'title'));
         $this->assertSame([2, 5], data_get($publication->payload, 'categories'));
         $this->assertSame('visuals/cover.jpg', data_get($publication->payload, 'media.path'));
         Queue::assertPushedOn('publishing', PublishArticleToWordPress::class, fn (PublishArticleToWordPress $job): bool => $job->publicationId === $publication->id);

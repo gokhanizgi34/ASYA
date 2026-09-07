@@ -62,7 +62,7 @@ class PublicationCreator
             'status' => PublicationStatus::Queued,
             'remote_status' => $data['remote_status'],
             'payload' => [
-                'title' => $article->seoAnalysis->meta_title ?: $article->title,
+                'title' => $article->title,
                 'slug' => $article->slug,
                 'content' => $article->body,
                 'excerpt' => $article->seoAnalysis->meta_description ?: $article->summary,

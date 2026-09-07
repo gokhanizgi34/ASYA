@@ -382,6 +382,29 @@ XML;
         $this->assertDatabaseHas('raw_news_items', ['original_title' => 'Otomatik TLS fallback haber başlığı']);
     }
 
+    public function test_html_crawler_ignores_weather_heading_and_uses_the_url_matching_news_title(): void
+    {
+        Http::preventStrayRequests();
+        $title = 'Beykoz Metrosu için Kritik Ziyaret: Hedef 2027';
+        $article = '<html><head><title>'.$title.' - T.C. Beykoz Belediyesi</title></head><body><header><h1>25°C</h1></header><main><h4>'.$title.'</h4><section class="news-content"><p>Ulaştırma ve Altyapı Bakanı Beykoz ulaşım yatırımlarını görüşmek üzere belediye yönetimini ziyaret etti.</p><p>Görüşmede Ümraniye Kavacık Beykoz Raylı Sistem Hattı ve projenin yatırım programına alınması ele alındı.</p><p>Hattın detay projelerinin tamamlanmasının ardından çalışmalara 2027 yılında başlanmasının hedeflendiği açıklandı.</p></section></main></body></html>';
+        Http::fake([
+            'https://93.184.216.34/haberler' => Http::response('<html><body><a href="/haber/beykoz-metrosu-icin-kritik-ziyaret-hedef-2027">'.$title.'</a></body></html>', 200, ['Content-Type' => 'text/html']),
+            'https://93.184.216.34/haberler/feed/' => Http::response('', 404),
+            'https://93.184.216.34/wp-json/wp/v2/posts?per_page=20&_embed=1' => Http::response('', 404),
+            'https://93.184.216.34/haber/beykoz-metrosu-icin-kritik-ziyaret-hedef-2027' => Http::response($article, 200, ['Content-Type' => 'text/html']),
+        ]);
+        $agency = Agency::factory()->create();
+        $editor = User::factory()->editor()->for($agency)->create();
+        $source = NewsSource::factory()->for($agency)->create(['feed_url' => 'https://93.184.216.34/haberler']);
+
+        $this->actingAs($editor)->post(route('source-trust.sources.import', $source))->assertRedirect()->assertSessionHas('success');
+
+        $rawNewsItem = RawNewsItem::query()->sole();
+        $this->assertSame($title, $rawNewsItem->original_title);
+        $this->assertNotSame('25°C', $rawNewsItem->original_title);
+        $this->assertSame(RawNewsStatus::Pending, $rawNewsItem->status);
+    }
+
     public function test_html_crawler_extracts_lazy_loaded_source_image(): void
     {
         Http::preventStrayRequests();

@@ -579,10 +579,7 @@ class NewsContentExtractor
             return null;
         }
 
-        $title = $this->meta($xpath, 'property', 'og:title')
-            ?: $this->nodeText($xpath, '//h1[1]')
-            ?: $this->nodeText($xpath, '//h2[string-length(normalize-space(.)) > 20][1]')
-            ?: $this->nodeText($xpath, '//title[1]');
+        $title = $this->articleTitle($xpath, $url);
         $body = $this->jsonLdArticleBody($xpath);
         $bodyNode = $this->headingContentNode($xpath) ?: $this->firstNode($xpath, [
             "//*[contains(translate(@class, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'article-content')][1]",
@@ -788,6 +785,69 @@ class NewsContentExtractor
         }
 
         return null;
+    }
+
+    private function articleTitle(DOMXPath $xpath, string $url): string
+    {
+        $candidates = [
+            [$this->meta($xpath, 'property', 'og:title'), 400],
+            [$this->meta($xpath, 'name', 'twitter:title'), 380],
+            [$this->jsonLdArticleHeadline($xpath), 360],
+        ];
+
+        foreach ($xpath->query('//main//h1 | //main//h2 | //main//h3 | //main//h4 | //article//h1 | //article//h2 | //article//h3 | //article//h4 | //h1 | //h2 | //h3 | //h4') ?: [] as $heading) {
+            $candidates[] = [$this->plainText($heading->textContent), 200];
+        }
+
+        $candidates[] = [$this->nodeText($xpath, '//title[1]'), 100];
+        $urlTokens = collect(preg_split('/[^\pL\pN]+/u', Str::lower(Str::ascii((string) parse_url($url, PHP_URL_PATH)))) ?: [])
+            ->filter(fn (string $token): bool => Str::length($token) >= 4 && ! in_array($token, ['haber', 'haberler', 'news'], true))
+            ->unique()
+            ->values();
+
+        return collect($candidates)
+            ->map(function (array $candidate) use ($urlTokens): array {
+                $title = $this->plainText($candidate[0]);
+                $normalizedTitle = Str::lower(Str::ascii($title));
+                $matchingTokens = $urlTokens->filter(fn (string $token): bool => Str::contains($normalizedTitle, $token))->count();
+
+                return [
+                    'title' => $title,
+                    'score' => $candidate[1] + ($matchingTokens * 40) - (int) floor(Str::length($title) / 100),
+                ];
+            })
+            ->filter(fn (array $candidate): bool => $this->isNewsTitleCandidate($candidate['title']))
+            ->sortByDesc('score')
+            ->value('title') ?? '';
+    }
+
+    private function isNewsTitleCandidate(string $title): bool
+    {
+        if (Str::length($title) < 10 || preg_match('/^\s*-?\d{1,3}\s*°\s*[cf]?\s*$/iu', $title) === 1) {
+            return false;
+        }
+
+        $words = preg_split('/[^\pL\pN]+/u', $title, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+        return count($words) >= 2
+            && preg_match('/^(?:haberler?|güncel|kurumsal|hava durumu|kısayollar|ana sayfa)$/iu', $title) !== 1;
+    }
+
+    private function jsonLdArticleHeadline(DOMXPath $xpath): string
+    {
+        foreach ($xpath->query('//script[@type="application/ld+json"]') ?: [] as $script) {
+            $decoded = json_decode(trim((string) $script->textContent), true);
+
+            foreach ($this->jsonLdRecords($decoded) as $record) {
+                $types = array_map('strtolower', (array) ($record['@type'] ?? []));
+
+                if (array_intersect($types, ['article', 'newsarticle', 'reportagenewsarticle']) !== []) {
+                    return $this->plainText((string) ($record['headline'] ?? ''));
+                }
+            }
+        }
+
+        return '';
     }
 
     private function jsonLdArticleBody(DOMXPath $xpath): string

@@ -64,6 +64,7 @@ class AiNewsWriterTest extends TestCase
             && ! array_key_exists('temperature', $request->data())
             && data_get($request->data(), 'response_format.type') === 'json_object'
             && str_contains((string) data_get($request->data(), 'messages.0.content'), '"haberine göre"')
+            && str_contains((string) data_get($request->data(), 'messages.0.content'), 'kelimeyi veya cümleyi yarım bırakma')
             && str_contains((string) data_get($request->data(), 'messages.1.content'), $rawNewsItem->original_title));
     }
 

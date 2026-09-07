@@ -143,11 +143,37 @@ class ContentBatchProcessor
             }
 
             $slugBase = Str::slug($content['title']) ?: 'haber';
+            $preferredSlug = $slugBase.'-raw-'.$rawNewsItem->id;
+            $existingArticle = Article::withTrashed()
+                ->where('agency_id', $batch->agency_id)
+                ->where('slug', $preferredSlug)
+                ->lockForUpdate()
+                ->first();
+
+            if ($existingArticle && ! $existingArticle->trashed()) {
+                $rawNewsItem->update([
+                    'status' => RawNewsStatus::Processed,
+                    'processed_at' => now(),
+                    'failure_message' => null,
+                ]);
+                $item->update([
+                    'article_id' => $existingArticle->id,
+                    'status' => ContentBatchItemStatus::Completed,
+                    'failure_message' => null,
+                    'completed_at' => now(),
+                ]);
+
+                return $existingArticle->id;
+            }
+
+            $slug = $existingArticle
+                ? $this->availableRetrySlug($batch->agency_id, $preferredSlug, $item->id)
+                : $preferredSlug;
             $article = Article::query()->create([
                 'agency_id' => $batch->agency_id,
                 'author_id' => $batch->created_by,
                 'title' => $content['title'],
-                'slug' => $slugBase.'-raw-'.$rawNewsItem->id,
+                'slug' => $slug,
                 'summary' => $content['summary'],
                 'body' => $content['body'],
                 'editorial_metadata' => [
@@ -181,6 +207,19 @@ class ContentBatchProcessor
 
             return $article->id;
         }, 3);
+    }
+
+    private function availableRetrySlug(int $agencyId, string $preferredSlug, int $contentBatchItemId): string
+    {
+        $attempt = 1;
+
+        do {
+            $suffix = '-retry-'.$contentBatchItemId.($attempt > 1 ? '-'.$attempt : '');
+            $slug = Str::limit($preferredSlug, 255 - Str::length($suffix), '').$suffix;
+            $attempt++;
+        } while (Article::withTrashed()->where('agency_id', $agencyId)->where('slug', $slug)->exists());
+
+        return $slug;
     }
 
     private function markItemFailed(int $contentBatchItemId, Throwable $exception): void

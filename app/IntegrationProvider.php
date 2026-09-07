@@ -10,6 +10,7 @@ enum IntegrationProvider: string
     case GoogleGemini = 'google_gemini';
     case GoogleSearchConsole = 'google_search_console';
     case Pixabay = 'pixabay';
+    case Pexels = 'pexels';
     case DeepSeek = 'deepseek';
     case Mistral = 'mistral';
     case XAi = 'xai';
@@ -30,6 +31,7 @@ enum IntegrationProvider: string
             self::GoogleGemini => 'Google Gemini',
             self::GoogleSearchConsole => 'Google Search Console',
             self::Pixabay => 'Pixabay Görsel API',
+            self::Pexels => 'Pexels Görsel API',
             self::DeepSeek => 'DeepSeek',
             self::Mistral => 'Mistral AI',
             self::XAi => 'xAI (Grok)',
@@ -59,7 +61,7 @@ enum IntegrationProvider: string
 
     public function usesSimpleSetup(): bool
     {
-        return $this->isAi() || in_array($this, [self::XTrends, self::Pixabay, self::GoogleSearchConsole], true);
+        return $this->isAi() || in_array($this, [self::XTrends, self::Pixabay, self::Pexels, self::GoogleSearchConsole], true);
     }
 
     public function defaultBaseUrl(): ?string
@@ -70,6 +72,7 @@ enum IntegrationProvider: string
             self::GoogleGemini => 'https://generativelanguage.googleapis.com/v1beta/models',
             self::GoogleSearchConsole => 'https://www.googleapis.com/webmasters/v3',
             self::Pixabay => 'https://pixabay.com/api/',
+            self::Pexels => 'https://api.pexels.com/v1/search',
             self::XTrends => 'https://api.x.com/2/trends/by/woeid',
             self::DeepSeek => 'https://api.deepseek.com/models',
             self::Mistral => 'https://api.mistral.ai/v1/models',
@@ -86,13 +89,18 @@ enum IntegrationProvider: string
         return match ($this) {
             self::Anthropic => IntegrationAuthType::ApiKeyHeader,
             self::GoogleGemini, self::Pixabay, self::GoogleSearchConsole => IntegrationAuthType::None,
+            self::Pexels => IntegrationAuthType::ApiKeyHeader,
             default => IntegrationAuthType::Bearer,
         };
     }
 
     public function defaultApiKeyHeader(): ?string
     {
-        return $this === self::Anthropic ? 'x-api-key' : null;
+        return match ($this) {
+            self::Anthropic => 'x-api-key',
+            self::Pexels => 'Authorization',
+            default => null,
+        };
     }
 
     /** @return array<int, string> */

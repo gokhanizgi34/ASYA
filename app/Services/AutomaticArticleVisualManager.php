@@ -66,6 +66,21 @@ class AutomaticArticleVisualManager
             ]);
         }
 
+        try {
+            $pexelsVisual = $this->pixabayAllowed($article, $sourcePageUrl)
+                ? $this->importPexelsImage($article)
+                : null;
+
+            if ($pexelsVisual) {
+                return $pexelsVisual;
+            }
+        } catch (Throwable $exception) {
+            Log::warning('Pexels uygun bir görsel sağlayamadı.', [
+                'article_id' => $article->id,
+                'message' => $exception->getMessage(),
+            ]);
+        }
+
         if ($this->settings->get('visual.ai_generation_enabled', $article->agency_id)) {
             try {
                 return $this->generateImage($article);
@@ -224,6 +239,111 @@ class AutomaticArticleVisualManager
             sourceUrl: (string) data_get($hit, 'pageURL', $imageUrl),
             generationPrompt: 'Pixabay araması: '.$search['query'].' · etiketler: '.Str::limit((string) data_get($hit, 'tags', ''), 300, ''),
         );
+    }
+
+    private function importPexelsImage(Article $article): ?VisualAsset
+    {
+        $integration = ApiIntegration::query()
+            ->where('agency_id', $article->agency_id)
+            ->where('provider', IntegrationProvider::Pexels)
+            ->where('is_active', true)
+            ->where('visual_enabled', true)
+            ->orderByDesc('is_default')
+            ->orderBy('priority')
+            ->first();
+
+        if (! $integration || blank($integration->credential)) {
+            return null;
+        }
+
+        $search = $this->pixabaySearch($article);
+        $this->urlGuard->assertSafe($integration->base_url);
+        $response = Http::acceptJson()
+            ->withUserAgent('ASYA-News-Automation/1.0')
+            ->withHeader('Authorization', (string) $integration->credential)
+            ->connectTimeout(10)
+            ->timeout(max(15, $integration->timeout_seconds))
+            ->get($integration->base_url, [
+                'query' => $search['query'],
+                'orientation' => 'landscape',
+                'size' => 'large',
+                'locale' => $search['language'] === 'tr' ? 'tr-TR' : 'en-US',
+                'per_page' => 50,
+            ]);
+        $response->throw();
+
+        $photo = $this->selectPexelsPhoto($article, (array) $response->json('photos', []));
+
+        if ($photo === null) {
+            return null;
+        }
+
+        $imageUrl = (string) data_get($photo, 'src.large2x', data_get($photo, 'src.large'));
+        $this->urlGuard->assertSafe($imageUrl);
+        $imageResponse = Http::accept('image/*')
+            ->withUserAgent('ASYA-News-Automation/1.0')
+            ->connectTimeout(10)
+            ->timeout(30)
+            ->get($imageUrl);
+        $imageResponse->throw();
+
+        return $this->storeImage(
+            article: $article,
+            bytes: $imageResponse->body(),
+            sourceType: VisualSourceType::Archive,
+            copyrightStatus: CopyrightStatus::Licensed,
+            sourceUrl: (string) data_get($photo, 'url', $imageUrl),
+            generationPrompt: 'Pexels araması: '.$search['query'].' · açıklama: '.Str::limit((string) data_get($photo, 'alt', ''), 300, ''),
+        );
+    }
+
+    /**
+     * @param  array<int, mixed>  $photos
+     * @return array<string, mixed>|null
+     */
+    private function selectPexelsPhoto(Article $article, array $photos): ?array
+    {
+        $contentType = (string) data_get($article->editorial_metadata, 'content_type', 'news');
+        $articleTerms = $this->pixabayTerms($article->title.' '.(string) data_get($article->editorial_metadata, 'category', ''));
+        $blockedTerms = ['animal', 'animals', 'wildlife', 'seal', 'sealion', 'fok', 'dog', 'cat', 'bird', 'hayvan'];
+        $requiredTerms = match ($contentType) {
+            'horoscope', 'horoscope_day' => ['zodiac', 'astrology', 'horoscope', 'constellation', 'stars', 'astroloji', 'burc'],
+            'recipe' => ['food', 'meal', 'dish', 'cuisine', 'cooking', 'kitchen', 'dessert', 'soup', 'salad', 'yemek', 'mutfak', 'tarif', 'tabak'],
+            'special_day' => ['celebration', 'holiday', 'festival', 'event', 'flag', 'kutlama', 'bayram', 'etkinlik'],
+            'campaign' => ['campaign', 'event', 'shopping', 'sale', 'promotion', 'kampanya', 'etkinlik'],
+            default => [],
+        };
+
+        return collect($photos)
+            ->filter(fn (mixed $photo): bool => is_array($photo) && filled(data_get($photo, 'src.large2x', data_get($photo, 'src.large'))))
+            ->map(function (array $photo) use ($articleTerms, $blockedTerms, $requiredTerms, $contentType): ?array {
+                $descriptionTerms = $this->pixabayTerms((string) data_get($photo, 'alt', ''));
+                $overlap = count(array_intersect($articleTerms, $descriptionTerms));
+                $hasRequiredContext = $requiredTerms !== [] && array_intersect($requiredTerms, $descriptionTerms) !== [];
+                $hasBlockedContext = array_intersect($blockedTerms, $descriptionTerms) !== [];
+                $width = (int) data_get($photo, 'width', 0);
+                $height = (int) data_get($photo, 'height', 0);
+                $isLandscape = $height > 0 && ($width / $height) >= 1.15;
+                $isRelevant = match ($contentType) {
+                    'horoscope', 'horoscope_day' => $hasRequiredContext,
+                    'recipe', 'special_day', 'campaign' => $hasRequiredContext || $overlap > 0,
+                    default => $overlap > 0,
+                };
+
+                if ($hasBlockedContext || ! $isLandscape || ! $isRelevant) {
+                    return null;
+                }
+
+                return [
+                    ...$photo,
+                    '_asya_score' => ($overlap * 1000)
+                        + ($hasRequiredContext ? 500 : 0)
+                        + min(300, (int) floor($width / 20)),
+                ];
+            })
+            ->filter()
+            ->sortByDesc('_asya_score')
+            ->first();
     }
 
     /** @return array{query: string, language: string} */

@@ -59,6 +59,47 @@ class PixabayVisualFallbackTest extends TestCase
         Storage::disk('public')->assertExists($visual->storage_path);
     }
 
+    public function test_pexels_is_used_when_pixabay_is_not_configured(): void
+    {
+        Storage::fake('public');
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://93.184.216.34/pexels/search*' => Http::response([
+                'photos' => [[
+                    'id' => 84,
+                    'alt' => 'Turkish food served on a table',
+                    'url' => 'https://www.pexels.com/photo/turkish-food-84/',
+                    'src' => ['large2x' => 'https://93.184.216.34/images/pexels.png'],
+                    'width' => 1920,
+                    'height' => 1080,
+                ]],
+            ]),
+            'https://93.184.216.34/images/pexels.png' => Http::response($this->png(), 200, ['Content-Type' => 'image/png']),
+        ]);
+
+        $agency = Agency::factory()->create();
+        $article = Article::factory()->for($agency)->create([
+            'title' => 'Türk mutfağından nefis yemek tarifi',
+            'editorial_metadata' => ['content_type' => 'recipe', 'category' => 'Yemek'],
+        ]);
+        ApiIntegration::factory()->for($agency)->create([
+            'provider' => IntegrationProvider::Pexels,
+            'name' => 'Pexels',
+            'base_url' => 'https://93.184.216.34/pexels/search',
+            'credential' => 'pexels-key',
+            'visual_enabled' => true,
+            'is_active' => true,
+        ]);
+
+        $visual = app(AutomaticArticleVisualManager::class)->ensure($article);
+
+        $this->assertNotNull($visual);
+        $this->assertStringContainsString('Pexels araması:', (string) $visual->generation_prompt);
+        Storage::disk('public')->assertExists($visual->storage_path);
+        Http::assertSent(fn (Request $request): bool => str_starts_with($request->url(), 'https://93.184.216.34/pexels/search')
+            && $request->hasHeader('Authorization', 'pexels-key'));
+    }
+
     public function test_pixabay_rejects_unrelated_animal_for_horoscope(): void
     {
         Storage::fake('public');

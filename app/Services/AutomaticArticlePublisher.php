@@ -89,7 +89,7 @@ class AutomaticArticlePublisher
         );
 
         if ($visual === null) {
-            throw new RuntimeException('Haber yayınlanamadı: kaynakta veya Pixabay sonuçlarında içerikle uyumlu bir görsel bulunamadı.');
+            throw new RuntimeException('Haber yayınlanamadı: kaynakta, Pixabay veya Pexels sonuçlarında içerikle uyumlu bir görsel bulunamadı.');
         }
 
         $article->forceFill([

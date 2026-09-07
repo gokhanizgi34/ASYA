@@ -99,7 +99,7 @@ class GeneratedContentPublicationService
         if ($visual === null) {
             $article->forceFill([
                 'status' => ArticleStatus::Failed,
-                'failure_message' => 'Görsel bekliyor: kaynakta veya Pixabay sonuçlarında içerikle uyumlu bir görsel bulunamadı.',
+                'failure_message' => 'Görsel bekliyor: kaynakta, Pixabay veya Pexels sonuçlarında içerikle uyumlu bir görsel bulunamadı.',
             ])->save();
 
             throw new RuntimeException('İçerik yayınlanmadı: haberle uyumlu bir kapak görseli bulunamadı. Kayıt görsel bekliyor durumuna alındı.');

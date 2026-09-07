@@ -137,7 +137,7 @@ class StoreApiIntegrationRequest extends FormRequest
                 : ($isSearchConsole ? ($searchConsoleSitemap ?? trim((string) $this->input('model'))) : (filled($this->input('model')) ? trim((string) $this->input('model')) : null)),
             'priority' => $isManagedProvider ? ($integration?->priority ?? 50) : (int) $this->input('priority', 50),
             'is_default' => $isAiProvider ? ($integration?->is_default ?? false) : $this->boolean('is_default'),
-            'visual_enabled' => $provider === IntegrationProvider::Pixabay || $this->boolean('visual_enabled'),
+            'visual_enabled' => in_array($provider, [IntegrationProvider::Pixabay, IntegrationProvider::Pexels], true) || $this->boolean('visual_enabled'),
             'base_url' => rtrim(trim((string) ($isManagedProvider ? $provider->defaultBaseUrl() : $this->input('base_url'))), '/'),
             'auth_type' => $isManagedProvider ? $provider->defaultAuthType()->value : $this->input('auth_type'),
             'username' => $isSearchConsole

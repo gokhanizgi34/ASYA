@@ -95,6 +95,12 @@
         @if ($selectedProvider === App\IntegrationProvider::Pixabay)
             <input type="hidden" name="visual_enabled" value="1">
             <p class="rounded-xl border border-emerald-400/20 bg-emerald-400/5 px-4 py-3 text-sm text-emerald-200">Pixabay yalnızca tarif ve içerik görselleri için kullanılacaktır; metin yapay zekâ sıralamasına katılmaz.</p>
+        @elseif ($selectedProvider === App\IntegrationProvider::Pexels)
+            <input type="hidden" name="visual_enabled" value="1">
+            <div class="grid gap-3 rounded-xl border border-emerald-400/20 bg-emerald-400/5 px-4 py-3 text-sm text-emerald-200">
+                <p>Pexels, Pixabay uygun görsel bulamadığında devreye giren yedek görsel kaynağıdır; metin üretiminde kullanılmaz.</p>
+                <a href="https://www.pexels.com/api/" target="_blank" rel="noopener noreferrer" class="w-fit rounded-lg border border-emerald-300/30 px-3 py-2 font-bold text-emerald-100 hover:border-emerald-300/60">Pexels API anahtarı al ↗</a>
+            </div>
         @else
             <label class="flex items-center gap-3 rounded-xl border border-amber-400/20 bg-amber-400/5 px-4 py-3">
                 <input type="hidden" name="visual_enabled" value="0">

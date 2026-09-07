@@ -210,6 +210,34 @@ class ApiIntegrationControllerTest extends TestCase
         $this->assertNotSame('pixabay-secret-key', DB::table('api_integrations')->value('credential'));
     }
 
+    public function test_owner_can_add_pexels_with_only_api_key(): void
+    {
+        $agency = Agency::factory()->create();
+        $owner = User::factory()->agencyOwner()->for($agency)->create();
+
+        $this->actingAs($owner)->get(route('api-integrations.create', ['provider' => IntegrationProvider::Pexels->value]))
+            ->assertOk()
+            ->assertSee('Pexels Görsel API')
+            ->assertSee('name="credential"', false)
+            ->assertDontSee('name="base_url"', false)
+            ->assertDontSee('name="model"', false);
+
+        $this->actingAs($owner)->post(route('api-integrations.store'), [
+            'provider' => IntegrationProvider::Pexels->value,
+            'credential' => 'pexels-secret-key',
+        ])->assertRedirect(route('api-integrations.index'));
+
+        $integration = ApiIntegration::query()->sole();
+        $this->assertSame(IntegrationProvider::Pexels, $integration->provider);
+        $this->assertSame('Pexels Görsel API', $integration->name);
+        $this->assertSame('https://api.pexels.com/v1/search', $integration->base_url);
+        $this->assertSame(IntegrationAuthType::ApiKeyHeader, $integration->auth_type);
+        $this->assertSame('Authorization', $integration->api_key_header);
+        $this->assertTrue($integration->visual_enabled);
+        $this->assertSame('pexels-secret-key', $integration->credential);
+        $this->assertNotSame('pexels-secret-key', DB::table('api_integrations')->value('credential'));
+    }
+
     /** @param array<string, mixed> $overrides */
     private function validPayload(array $overrides = []): array
     {

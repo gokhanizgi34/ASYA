@@ -75,6 +75,12 @@ class ApiIntegrationTester
                     'safesearch' => 'true',
                     'per_page' => 3,
                 ]);
+            } elseif ($integration->provider === IntegrationProvider::Pexels) {
+                $response = $this->request($integration)->get($testUrl, [
+                    'query' => 'Istanbul city',
+                    'orientation' => 'landscape',
+                    'per_page' => 1,
+                ]);
             } else {
                 $response = $this->request($integration)->get($testUrl, $integration->provider === IntegrationProvider::XTrends ? ['max_trends' => 1] : []);
             }

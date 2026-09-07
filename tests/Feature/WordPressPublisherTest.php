@@ -10,6 +10,7 @@ use App\Models\User;
 use App\PublicationStatus;
 use App\PublishingProtocol;
 use App\RemotePublicationStatus;
+use App\Services\AutomaticSocialPublisher;
 use App\Services\WordPressPublisher;
 use App\Services\XVideoFeaturedImageBadge;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
@@ -283,6 +284,24 @@ class WordPressPublisherTest extends TestCase
         }
         $this->assertSame(PublicationStatus::Failed, $failed->fresh()->status);
         $this->assertSame('Uzak sunucu erişilemiyor.', $failed->fresh()->failure_message);
+    }
+
+    public function test_live_wordpress_publication_starts_automatic_x_publishing_after_success(): void
+    {
+        $publication = $this->publication();
+        $publication->update(['remote_status' => RemotePublicationStatus::Publish]);
+        $this->mock(WordPressPublisher::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('publish')->once()->andReturn(['post_id' => '125', 'media_id' => null, 'url' => 'https://news.example.com/live-news', 'response_meta' => ['driver' => 'rest']]);
+        });
+        $this->mock(AutomaticSocialPublisher::class, function (MockInterface $mock) use ($publication): void {
+            $mock->shouldReceive('publish')
+                ->once()
+                ->withArgs(fn ($article): bool => $article->is($publication->article));
+        });
+
+        (new PublishArticleToWordPress($publication->id))->handle(app(WordPressPublisher::class));
+
+        $this->assertSame(PublicationStatus::Published, $publication->fresh()->status);
     }
 
     public function test_publication_job_does_not_block_a_new_wordpress_send_for_a_similar_local_title(): void

@@ -23,7 +23,6 @@ class AutomaticArticlePublisher
         private readonly AutomaticArticleVisualManager $visualManager,
         private readonly PublicationCreator $publicationCreator,
         private readonly NewsContentQualityGate $qualityGate,
-        private readonly AutomaticSocialPublisher $socialPublisher,
     ) {}
 
     public function publish(int $articleId): void
@@ -128,7 +127,5 @@ class AutomaticArticlePublisher
                     ->afterCommit();
             }
         }
-
-        $this->socialPublisher->publish($article);
     }
 }

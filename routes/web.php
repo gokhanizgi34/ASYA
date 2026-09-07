@@ -226,6 +226,7 @@ Route::middleware(['auth', EnsureUserIsActive::class, ApplySystemSettings::class
 
     Route::get('/sosyal-yayinci', [SocialPublishingController::class, 'index'])->name('social-publishing.index');
     Route::post('/sosyal-yayinci/hesaplar', [SocialPublishingController::class, 'storeAccount'])->name('social-publishing.accounts.store');
+    Route::patch('/sosyal-yayinci/hesaplar/{socialPublishingAccount}', [SocialPublishingController::class, 'updateAccount'])->name('social-publishing.accounts.update');
     Route::post('/sosyal-yayinci/gonderiler', [SocialPublishingController::class, 'storePost'])->name('social-publishing.posts.store');
     Route::post('/sosyal-yayinci/gonderiler/{socialPost}/yayinla', SocialPostDispatchController::class)->name('social-posts.dispatch');
 

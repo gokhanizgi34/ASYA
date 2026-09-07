@@ -6,6 +6,8 @@ use App\IntegrationProvider;
 use App\Models\ApiIntegration;
 use App\Models\Publication;
 use App\PublicationStatus;
+use App\RemotePublicationStatus;
+use App\Services\AutomaticSocialPublisher;
 use App\Services\NewsDuplicateDetector;
 use App\Services\NotificationCenter;
 use App\Services\WordPressPublisher;
@@ -13,6 +15,7 @@ use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class PublishArticleToWordPress implements ShouldBeUnique, ShouldQueue
@@ -107,6 +110,18 @@ class PublishArticleToWordPress implements ShouldBeUnique, ShouldQueue
                 InspectPublishedUrlInSearchConsole::dispatch($publication->id)
                     ->onQueue('operations')
                     ->delay(now()->addMinutes(30));
+            }
+
+            if ($publication->remote_status === RemotePublicationStatus::Publish) {
+                try {
+                    app(AutomaticSocialPublisher::class)->publish($publication->article->fresh());
+                } catch (Throwable $socialException) {
+                    Log::warning('WordPress yayını tamamlandı ancak otomatik X gönderisi kuyruğa alınamadı.', [
+                        'publication_id' => $publication->id,
+                        'article_id' => $publication->article_id,
+                        'message' => $socialException->getMessage(),
+                    ]);
+                }
             }
         } catch (Throwable $exception) {
             $message = str($exception->getMessage())->limit(1000)->toString();

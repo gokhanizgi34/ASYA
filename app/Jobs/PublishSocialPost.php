@@ -51,7 +51,9 @@ class PublishSocialPost implements ShouldBeUnique, ShouldQueue
                 'error_message' => $exception->getMessage(),
             ]);
 
-            throw $exception;
+            if ($post->account?->publish_mode !== 'x_api_v2') {
+                throw $exception;
+            }
         }
     }
 }

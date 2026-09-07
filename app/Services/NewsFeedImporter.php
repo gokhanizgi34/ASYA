@@ -224,6 +224,26 @@ class NewsFeedImporter
         $title = preg_replace('/\s*[-|–—]\s*(?:'.$brand.'|'.$domain.')(?:\s+[^-|–—]{0,80})?\s*$/iu', '', $title) ?? $title;
         $title = preg_replace('/\s+(?:haberleri|son dakika|gündem|spor|magazin)\s*$/iu', '', $title) ?? $title;
 
-        return Str::of($title)->squish()->limit(500, '')->toString();
+        return $this->limitTitleForStorage(Str::of($title)->squish()->toString());
+    }
+
+    private function limitTitleForStorage(string $title): string
+    {
+        if (Str::length($title) <= 255) {
+            return $title;
+        }
+
+        if (preg_match('/^(.{20,255}?[.!?…])(?:\s|$)/u', $title, $matches) === 1) {
+            return trim($matches[1]);
+        }
+
+        $shortened = Str::substr($title, 0, 255);
+        $lastSpace = mb_strrpos($shortened, ' ');
+
+        if ($lastSpace !== false && $lastSpace >= 180) {
+            $shortened = mb_substr($shortened, 0, $lastSpace);
+        }
+
+        return rtrim($shortened, " \t\n\r\0\x0B,;:-–—");
     }
 }

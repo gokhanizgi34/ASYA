@@ -45,6 +45,34 @@ class NewsSourceImportTest extends TestCase
         Http::assertSentCount(2);
     }
 
+    public function test_long_source_title_is_shortened_before_database_insert(): void
+    {
+        Http::preventStrayRequests();
+        $longTitle = str_repeat('Pendik Belediyesi Geleneksel El Sanatları Festivali ziyaretçilerine kapılarını açtı ', 6);
+        Http::fake([
+            'https://93.184.216.34/news.json' => Http::response([
+                'articles' => [[
+                    'id' => 'pendik-long-title',
+                    'title' => $longTitle,
+                    'body' => 'Pendik Belediyesi tarafından düzenlenen Geleneksel El Sanatları Festivali ziyaretçilerine kapılarını açtı. Festivalde farklı şehirlerden gelen sanatçılar eserlerini sergiledi.',
+                    'url' => 'https://93.184.216.34/haber/pendik-festival',
+                    'published_at' => '2026-08-29T12:00:00+03:00',
+                ]],
+            ], 200, ['Content-Type' => 'application/json']),
+        ]);
+        $agency = Agency::factory()->create();
+        $editor = User::factory()->editor()->for($agency)->create();
+        $source = NewsSource::factory()->for($agency)->create(['feed_url' => 'https://93.184.216.34/news.json']);
+
+        $this->actingAs($editor)->post(route('source-trust.sources.import', $source))
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $title = RawNewsItem::query()->sole()->original_title;
+        $this->assertLessThanOrEqual(255, mb_strlen($title));
+        $this->assertFalse(str_ends_with($title, 'Fest'));
+    }
+
     public function test_rss_summary_is_replaced_with_full_linked_article_body(): void
     {
         Http::preventStrayRequests();

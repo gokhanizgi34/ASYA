@@ -636,6 +636,7 @@ class NewsContentExtractor
         }
 
         $handle = Str::before(trim((string) parse_url($url, PHP_URL_PATH), '/'), '/');
+        $profileIdentity = $this->xProfileIdentity($html);
         $items = [];
 
         foreach ($matches as $match) {
@@ -656,11 +657,18 @@ class NewsContentExtractor
             $postUrl = 'https://'.parse_url($url, PHP_URL_HOST).'/'.$handle.'/status/'.$statusId;
             $image = $this->xTimelineImage($decodedHtml, $match[1]);
             $publishedAt = Carbon::createFromTimestamp((int) floor(((int) $match[3]) / 1000));
+            $title = $this->xTimelineTitle($text);
+            $body = $text;
+
+            if ($profileIdentity !== null) {
+                $title = $profileIdentity.' '.$title;
+                $body = 'Paylaşımı yapan: '.$profileIdentity.".\n\n".$text;
+            }
 
             $items[$statusId] = $this->item(
                 $statusId,
-                $this->xTimelineTitle($text),
-                $text,
+                $title,
+                $body,
                 $postUrl,
                 $image,
                 $publishedAt,
@@ -678,6 +686,42 @@ class NewsContentExtractor
             ->first(fn (string $paragraph): bool => Str::length($paragraph) >= 10) ?? Str::squish($text);
 
         return Str::limit($title, 500, '');
+    }
+
+    private function xProfileIdentity(string $html): ?string
+    {
+        $xpath = $this->xpath($html);
+
+        if (! $xpath) {
+            return null;
+        }
+
+        $profileTitle = $this->meta($xpath, 'property', 'og:title')
+            ?: $this->meta($xpath, 'name', 'twitter:title');
+        $profileDescription = $this->meta($xpath, 'property', 'og:description')
+            ?: $this->meta($xpath, 'name', 'twitter:description')
+            ?: $this->meta($xpath, 'name', 'description');
+        $name = trim((string) preg_replace('/\s*\(@[^)]+\)\s+on\s+X\s*$/iu', '', $profileTitle));
+        $name = trim((string) preg_replace("/[^\p{L}\p{N}\s.'’\-]/u", '', $name));
+        $name = Str::squish($name);
+
+        if ($name === '' || $profileDescription === '') {
+            return null;
+        }
+
+        $rolePattern = '(?:Büyükşehir\s+Belediye\s+Başkanı|Belediye\s+Başkanı|Cumhurbaşkanı\s+Yardımcısı|Cumhurbaşkanı|Bakan\s+Yardımcısı|Bakanı|Valisi|Vali|Kaymakamı|Kaymakam|Milletvekili|Genel\s+Başkanı|İl\s+Başkanı|İlçe\s+Başkanı|Parti\s+Sözcüsü|Genel\s+Müdürü|Rektörü)';
+        $segments = preg_split('/[|•·\/\r\n]+/u', html_entity_decode($profileDescription, ENT_QUOTES | ENT_HTML5, 'UTF-8')) ?: [];
+        $role = collect($segments)
+            ->map(fn (string $segment): string => Str::squish(strip_tags($segment)))
+            ->first(fn (string $segment): bool => preg_match('/'.$rolePattern.'/iu', $segment) === 1);
+
+        if (! is_string($role) || $role === '') {
+            return null;
+        }
+
+        $role = Str::limit($role, 160, '');
+
+        return Str::contains(Str::lower($role), Str::lower($name)) ? $role : $role.' '.$name;
     }
 
     private function xTimelineImage(string $html, string $tweetKey): ?string

@@ -65,6 +65,7 @@ class AiNewsWriterTest extends TestCase
             && data_get($request->data(), 'response_format.type') === 'json_object'
             && str_contains((string) data_get($request->data(), 'messages.0.content'), '"haberine göre"')
             && str_contains((string) data_get($request->data(), 'messages.0.content'), 'kelimeyi veya cümleyi yarım bırakma')
+            && str_contains((string) data_get($request->data(), 'messages.0.content'), 'kişinin tam adını, doğrulanmış resmî unvanını')
             && str_contains((string) data_get($request->data(), 'messages.1.content'), $rawNewsItem->original_title));
     }
 

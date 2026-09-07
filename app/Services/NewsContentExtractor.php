@@ -64,6 +64,11 @@ class NewsContentExtractor
     {
         $response = $this->fetch($url);
         $body = $this->validBody($response);
+        $xTimelineItems = $this->parseXTimeline($url, $body);
+
+        if ($xTimelineItems !== [] || $this->isXProfileUrl($url)) {
+            return $this->result($xTimelineItems, $xTimelineItems === [] ? 'x_profile_timeline_empty' : 'x_profile_timeline', $url, $response, $body, $lookbackDays);
+        }
 
         if ($this->looksLikeJson($response, $body)) {
             $items = $this->hydrateLinkedArticles($this->parseJson($body, $url), $url);
@@ -612,6 +617,104 @@ class NewsContentExtractor
             ?: $this->attribute($xpath, '//time[@datetime][1]', 'datetime');
 
         return $this->item($url, $title, $body, $url, $this->nullableUrl($url, $image), $date);
+    }
+
+    /**
+     * @return array<int, array{external_id: ?string, title: string, body: string, url: ?string, image_url: ?string, published_at: Carbon}>
+     */
+    private function parseXTimeline(string $url, string $html): array
+    {
+        if (! $this->isXUrl($url)) {
+            return [];
+        }
+
+        $decodedHtml = html_entity_decode(str_replace(['\\u002F', '\\/'], '/', $html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $pattern = '~"client:(VHdlZXQ6[A-Za-z0-9+/=]+):details"[\s\S]{0,5000}?full_text:"((?:\\\\.|[^"\\\\])*)"[\s\S]{0,5000}?created_at_ms:(\d+)~u';
+
+        if (preg_match_all($pattern, $decodedHtml, $matches, PREG_SET_ORDER) < 1) {
+            return [];
+        }
+
+        $handle = Str::before(trim((string) parse_url($url, PHP_URL_PATH), '/'), '/');
+        $items = [];
+
+        foreach ($matches as $match) {
+            $identity = base64_decode($match[1], true);
+
+            if (! is_string($identity) || preg_match('/^Tweet:(\d+)$/', $identity, $idMatch) !== 1) {
+                continue;
+            }
+
+            $text = $this->decodeXString($match[2]);
+            $text = trim(preg_replace('~https://t\.co/[A-Za-z0-9]+~u', '', $text) ?? $text);
+
+            if (Str::length($text) < 20) {
+                continue;
+            }
+
+            $statusId = $idMatch[1];
+            $postUrl = 'https://'.parse_url($url, PHP_URL_HOST).'/'.$handle.'/status/'.$statusId;
+            $image = $this->xTimelineImage($decodedHtml, $match[1]);
+            $publishedAt = Carbon::createFromTimestamp((int) floor(((int) $match[3]) / 1000));
+
+            $items[$statusId] = $this->item(
+                $statusId,
+                $this->xTimelineTitle($text),
+                $text,
+                $postUrl,
+                $image,
+                $publishedAt,
+            );
+        }
+
+        return array_slice(array_values($items), 0, self::MAX_CRAWL_PAGES);
+    }
+
+    private function xTimelineTitle(string $text): string
+    {
+        $parts = preg_split('/(?<=[.!?])\s+|\R+/u', $text, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $title = collect($parts)
+            ->map(fn (string $part): string => Str::squish($part))
+            ->first(fn (string $part): bool => Str::length($part) >= 10) ?? Str::squish($text);
+
+        return Str::words($title, 24, '…');
+    }
+
+    private function xTimelineImage(string $html, string $tweetKey): ?string
+    {
+        $pattern = '~"client:'.preg_quote($tweetKey, '~').':media_entities2:\d+"[\s\S]{0,3000}?media_url_https:"((?:\\\\.|[^"\\\\])*)"~u';
+
+        if (preg_match($pattern, $html, $match) !== 1) {
+            return null;
+        }
+
+        $image = $this->decodeXString($match[1]);
+        $host = Str::lower((string) parse_url($image, PHP_URL_HOST));
+        $path = (string) parse_url($image, PHP_URL_PATH);
+
+        return $host === 'pbs.twimg.com' && str_starts_with($path, '/media/') ? $image : null;
+    }
+
+    private function decodeXString(string $value): string
+    {
+        $decoded = json_decode('"'.$value.'"', true);
+
+        if (is_string($decoded)) {
+            return $decoded;
+        }
+
+        return str_replace(['\\n', '\\r', '\\"', '\\\\'], ["\n", "\r", '"', '\\'], $value);
+    }
+
+    private function isXProfileUrl(string $url): bool
+    {
+        return $this->isXUrl($url)
+            && preg_match('~^/[^/]+/?$~', (string) parse_url($url, PHP_URL_PATH)) === 1;
+    }
+
+    private function isXUrl(string $url): bool
+    {
+        return in_array(Str::lower((string) parse_url($url, PHP_URL_HOST)), ['x.com', 'www.x.com', 'twitter.com', 'www.twitter.com'], true);
     }
 
     private function xPostImage(string $url): string

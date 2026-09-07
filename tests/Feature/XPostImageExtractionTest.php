@@ -50,7 +50,7 @@ HTML;
         $createdAtMs = now()->subMinute()->timestamp * 1000;
         $html = '<html><head><meta property="og:title" content="Ali Tombaş 🇹🇷 (@alitombastr) on X"><meta property="og:description" content="Sultanbeyli Belediye Başkanı"></head><body><script>'
             .'"client:'.$tweetKey.':details":$R[1]={__id:"details",__typename:"TBirdData",full_text:"AK Parti Grup Toplantımızı, İlçe Başkanımız Sn. Ayhan Üşdi ile birlikte gerçekleştirdik.\\n\\nSultanbeyli için birlik ve beraberlik ruhuyla çalışmalarımıza devam ediyoruz. https://t.co/4V0szzcP5U",created_at_ms:'.$createdAtMs.'},'
-            .'"client:'.$tweetKey.':media_entities2:0":$R[2]={__typename:"ApiMediaEntity",media_url_https:"'.$imageUrl.'",type:"photo"},'
+            .'"client:'.$tweetKey.':media_entities2:0":$R[2]={__typename:"ApiMediaEntity",media_url_https:"'.$imageUrl.'",type:"photo",video_info:null},'
             .'"client:'.base64_encode('Tweet:9999999999999999999').':media_entities2:0":$R[9]={__typename:"ApiMediaEntity",type:"video",video_info:{}}'
             .'</script></body></html>';
         Http::fake([$profileUrl => Http::response($html, 200, ['Content-Type' => 'text/html'])]);

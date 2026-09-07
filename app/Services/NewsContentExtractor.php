@@ -767,7 +767,7 @@ class NewsContentExtractor
             $length = $nextClient === false ? 6000 : min(6000, $nextClient - $start);
             $mediaBlock = substr($html, $start, $length);
 
-            if (str_contains($mediaBlock, 'type:"video"') || str_contains($mediaBlock, 'video_info:')) {
+            if (str_contains($mediaBlock, 'type:"video"') || str_contains($mediaBlock, 'type:"animated_gif"')) {
                 return $postUrl.'/video/1';
             }
 

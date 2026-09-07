@@ -9,9 +9,11 @@ use Illuminate\Support\Str;
 
 class NewsContentQualityGate
 {
+    public function __construct(private readonly NewsTextSanitizer $textSanitizer) {}
+
     public function assertRawNews(RawNewsItem $rawNewsItem): void
     {
-        $body = $this->plainText($rawNewsItem->original_body);
+        $body = $this->plainText($this->textSanitizer->clean($rawNewsItem->original_body));
         $title = $this->plainText($rawNewsItem->original_title);
         $newsText = $this->plainText($title.' '.$body);
 
@@ -44,10 +46,10 @@ class NewsContentQualityGate
     public function assertGenerated(RawNewsItem $rawNewsItem, array $content): void
     {
         $this->assertRawNews($rawNewsItem);
-        $body = $this->plainText($content['body']);
+        $body = $this->plainText($this->textSanitizer->clean($content['body']));
         $sentences = $this->sentences($body);
         $isBriefSource = $this->isSocialSource($rawNewsItem)
-            || Str::length($this->plainText($rawNewsItem->original_body)) < 350;
+            || Str::length($this->plainText($this->textSanitizer->clean($rawNewsItem->original_body))) < 350;
         $minimumBodyLength = $isBriefSource ? 100 : 180;
         $minimumWordCount = $isBriefSource ? 15 : 25;
         $minimumSentenceCount = $isBriefSource ? 1 : 2;
@@ -63,7 +65,7 @@ class NewsContentQualityGate
             throw new DomainException('AI çıktısında tekrarlanan veya dolgu cümleler tespit edildi.');
         }
 
-        $sourceTokens = $this->significantTokens($rawNewsItem->source_name.' '.$rawNewsItem->original_title.' '.$rawNewsItem->original_body);
+        $sourceTokens = $this->significantTokens($rawNewsItem->source_name.' '.$rawNewsItem->original_title.' '.$this->textSanitizer->clean($rawNewsItem->original_body));
         $outputTokens = $this->significantTokens($content['title'].' '.$content['summary'].' '.$body);
         $minimumOverlap = min(count($sourceTokens), $isBriefSource ? 1 : 3);
         if ($minimumOverlap > 0 && count(array_intersect($sourceTokens, $outputTokens)) < $minimumOverlap) {
@@ -100,7 +102,7 @@ class NewsContentQualityGate
 
     private function containsNewsSignal(string $text): bool
     {
-        return preg_match('/başladı|açıldı|tamamlandı|düzenlendi|gerçekleştirildi|duyurdu|açıkladı|bildirildi|paylaştı|mesajı|mesaj|tebrik|kutladı|sürüyor|devam ediyor|buluştu|katıldı|ziyaret etti|toplantı|koordinasyon|görüşme|karar|proje|çalışma|etkinlik|festival|operasyon|kaza|çarp(?:tı|ıştı)|yangın|gözaltı|hayatını kaybetti|yaralandı|kazandı|imzalandı|hizmete|başlayacak|hazırlanıyor|hazırlıyoruz/iu', $text) === 1;
+        return preg_match('/başladı|açıldı|tamamlandı|düzenlendi|düzenledi|gerçekleştirildi|duyurdu|açıkladı|bildirildi|paylaştı|mesajı|mesaj|tebrik|kutladı|sürüyor|devam ediyor|buluştu|katıldı|ziyaret etti|toplantı|koordinasyon|görüşme|karar|proje|çalışma|etkinlik|festival|operasyon|kaza|çarp(?:tı|ıştı)|yangın|gözaltı|hayatını kaybetti|yaralandı|kazandı|imzalandı|hizmete|başlayacak|hazırlanıyor|hazırlıyoruz/iu', $text) === 1;
     }
 
     private function plainText(string $value): string

@@ -9,6 +9,8 @@ use Illuminate\Support\Str;
 
 class LocalEditorialRewriter
 {
+    public function __construct(private readonly NewsTextSanitizer $textSanitizer) {}
+
     /**
      * @return array{title:string,summary:string,body:string,focus_keyword:string,keywords:array<int,string>,hashtags:array<int,string>,category:string,ai_provider:null,editorial_engine:string,destination:string,style_profile_id:int}|null
      */
@@ -20,7 +22,7 @@ class LocalEditorialRewriter
         }
 
         $title = Str::of(strip_tags($rawNewsItem->original_title))->squish()->toString();
-        $body = Str::of(html_entity_decode(strip_tags($rawNewsItem->original_body), ENT_QUOTES | ENT_HTML5, 'UTF-8'))
+        $body = Str::of($this->textSanitizer->clean($rawNewsItem->original_body))
             ->replaceMatches('/https?:\/\/\S+/iu', '')->replaceMatches('/\s+/u', ' ')->trim()->toString();
         $changes = 0;
         foreach ($profile->replacements ?? [] as $from => $to) {

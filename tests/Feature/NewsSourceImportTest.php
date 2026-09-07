@@ -382,6 +382,30 @@ XML;
         $this->assertNull(RawNewsItem::query()->firstOrFail()->original_image_url);
     }
 
+    public function test_html_crawler_removes_cookie_banner_from_stored_article_body(): void
+    {
+        Http::preventStrayRequests();
+        $article = <<<'HTML'
+<html><body><article><h1>Beylikdüzü Belediyesi çocuklara özel gezi programı düzenledi</h1><p>Beylikdüzü Belediyesi sağlık kuruluşlarında ücretsiz sünnet ettirilen çocuklar için gezi programı düzenledi.</p><p>Çocuklar Eyüp Sultan Camii ve Miniatürk'ü ziyaret ederek tarihi ve kültürel yapıları yakından tanıdı.</p><p>Ailelerin de katıldığı programda çocuklara çeşitli ikramlar ve hediyeler sunuldu.</p><p>Sitemizde kullanıcı deneyimini geliştirmek ve internet sitesinin verimli çalışmasını sağlamak amacıyla çerezler kullanılmaktadır. Çerez Bildirimi, Gizlilik Bildiriminin bir parçasıdır.</p></article></body></html>
+HTML;
+        Http::fake([
+            'https://93.184.216.34/haberler' => Http::response('<html><body><h2><a href="/haber/gezi">Beylikdüzü Belediyesi çocuklara özel gezi programı düzenledi</a></h2></body></html>', 200, ['Content-Type' => 'text/html']),
+            'https://93.184.216.34/haberler/feed/' => Http::response('', 404),
+            'https://93.184.216.34/wp-json/wp/v2/posts?per_page=20&_embed=1' => Http::response('', 404),
+            'https://93.184.216.34/haber/gezi' => Http::response($article, 200, ['Content-Type' => 'text/html']),
+        ]);
+        $agency = Agency::factory()->create();
+        $editor = User::factory()->editor()->for($agency)->create();
+        $source = NewsSource::factory()->for($agency)->create(['feed_url' => 'https://93.184.216.34/haberler']);
+
+        $this->actingAs($editor)->post(route('source-trust.sources.import', $source))->assertRedirect()->assertSessionHas('success');
+
+        $body = RawNewsItem::query()->firstOrFail()->original_body;
+        $this->assertStringContainsString('Eyüp Sultan Camii', $body);
+        $this->assertStringNotContainsString('çerezler kullanılmaktadır', $body);
+        $this->assertStringNotContainsString('Gizlilik Bildirimi', $body);
+    }
+
     public function test_html_crawler_uses_listing_card_image_when_article_has_no_image(): void
     {
         Http::preventStrayRequests();

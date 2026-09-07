@@ -12,6 +12,7 @@ class ContentTransformer
         private readonly AiNewsWriter $aiNewsWriter,
         private readonly NewsContentQualityGate $qualityGate,
         private readonly LocalEditorialRewriter $localRewriter,
+        private readonly NewsTextSanitizer $textSanitizer,
     ) {}
 
     /**
@@ -21,7 +22,7 @@ class ContentTransformer
     public function transform(RawNewsItem $rawNewsItem, array $promptSnapshot, bool $requireAi = false): array
     {
         $title = Str::of(strip_tags($rawNewsItem->original_title))->squish()->limit(220, '')->toString();
-        $body = Str::of(html_entity_decode(strip_tags($rawNewsItem->original_body), ENT_QUOTES | ENT_HTML5, 'UTF-8'))
+        $body = Str::of($this->textSanitizer->clean($rawNewsItem->original_body))
             ->replaceMatches('/\s+/u', ' ')
             ->trim()
             ->toString();

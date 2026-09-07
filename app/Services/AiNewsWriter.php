@@ -18,6 +18,7 @@ class AiNewsWriter
         private readonly ExternalUrlGuard $urlGuard,
         private readonly NewsContentQualityGate $qualityGate,
         private readonly SystemSettings $settings,
+        private readonly NewsTextSanitizer $textSanitizer,
     ) {}
 
     public function hasActiveIntegration(int $agencyId): bool
@@ -172,7 +173,7 @@ PROMPT);
     private function userPrompt(RawNewsItem $rawNewsItem, array $promptSnapshot): string
     {
         $configuredTemplate = trim((string) ($promptSnapshot['user_prompt_template'] ?? ''));
-        $body = Str::of(html_entity_decode(strip_tags($rawNewsItem->original_body), ENT_QUOTES | ENT_HTML5, 'UTF-8'))
+        $body = Str::of($this->textSanitizer->clean($rawNewsItem->original_body))
             ->replaceMatches('/\s+/u', ' ')
             ->trim()
             ->limit((int) $this->settings->get('ai.max_input_characters', $rawNewsItem->agency_id), '')

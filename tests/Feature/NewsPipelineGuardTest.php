@@ -100,6 +100,18 @@ class NewsPipelineGuardTest extends TestCase
         $this->addToAssertionCount(1);
     }
 
+    public function test_real_news_with_a_cookie_banner_suffix_is_accepted(): void
+    {
+        $item = RawNewsItem::factory()->make([
+            'original_title' => 'Beylikdüzü Belediyesi çocuklara özel gezi programı düzenledi',
+            'original_body' => 'Beylikdüzü Belediyesi çocuklar için gezi programı düzenledi. Çocuklar Eyüp Sultan Camii ve Miniatürk\'ü ziyaret ederek tarihi yapıları yakından tanıdı. Sitemizde kullanıcı deneyimini geliştirmek ve internet sitesinin verimli çalışmasını sağlamak amacıyla çerezler kullanılmaktadır. Çerez Bildirimi, Gizlilik Bildiriminin bir parçasıdır.',
+        ]);
+
+        app(NewsContentQualityGate::class)->assertRawNews($item);
+
+        $this->addToAssertionCount(1);
+    }
+
     public function test_policy_and_cookie_page_is_rejected_as_non_news(): void
     {
         $item = RawNewsItem::factory()->make([

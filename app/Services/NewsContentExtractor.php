@@ -26,6 +26,7 @@ class NewsContentExtractor
     public function __construct(
         private readonly ExternalUrlGuard $urlGuard,
         private readonly NativeTlsHttpFetcher $nativeTlsFetcher,
+        private readonly NewsTextSanitizer $textSanitizer,
     ) {}
 
     /**
@@ -596,6 +597,8 @@ class NewsContentExtractor
         if (mb_strlen($domBody) > mb_strlen($body)) {
             $body = $domBody;
         }
+
+        $body = $this->textSanitizer->clean($body);
 
         if ($title === '' || mb_strlen($body) < 180) {
             return null;

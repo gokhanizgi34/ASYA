@@ -90,6 +90,29 @@ HTML;
         $this->assertStringContainsString('Paylaşımı yapan: T.C. Ulaştırma ve Altyapı Bakanı Abdulkadir Uraloğlu.', $result['items'][0]['body']);
     }
 
+    public function test_x_profile_video_is_marked_and_uses_its_thumbnail(): void
+    {
+        Http::preventStrayRequests();
+        $profileUrl = 'https://x.com/umraniyebeltr';
+        $statusId = '2097004425772474609';
+        $tweetKey = base64_encode('Tweet:'.$statusId);
+        $thumbnailUrl = 'https://pbs.twimg.com/ext_tw_video_thumb/2097004000000000000/pu/img/video-cover.jpg';
+        $createdAtMs = now()->subMinute()->timestamp * 1000;
+        $html = '<html><head><meta property="og:title" content="Ümraniye Belediyesi (@umraniyebeltr) on X"></head><body><script>'
+            .'"client:'.$tweetKey.':details":$R[1]={__id:"details",__typename:"TBirdData",full_text:"Ümraniye için hazırlanan yeni projenin ayrıntıları kamuoyuyla paylaşıldı.",created_at_ms:'.$createdAtMs.'},'
+            .'"client:'.$tweetKey.':media_entities2:0":$R[2]={__typename:"ApiMediaEntity",media_url_https:"'.$thumbnailUrl.'",type:"video",video_info:{variants:[{content_type:"video/mp4",url:"https://video.twimg.com/example.mp4"}]}}'
+            .'</script></body></html>';
+        Http::fake([$profileUrl => Http::response($html, 200, ['Content-Type' => 'text/html'])]);
+        $this->mock(ExternalUrlGuard::class, function ($mock): void {
+            $mock->shouldReceive('assertSafe')->once();
+        });
+
+        $result = app(NewsContentExtractor::class)->extract($profileUrl, 1);
+
+        $this->assertSame('https://x.com/umraniyebeltr/status/'.$statusId.'/video/1', $result['items'][0]['url']);
+        $this->assertSame($thumbnailUrl, $result['items'][0]['image_url']);
+    }
+
     public function test_x_profile_without_tweets_does_not_store_application_state_as_news(): void
     {
         Http::preventStrayRequests();

@@ -616,7 +616,9 @@ class NewsContentExtractor
             ?: $this->meta($xpath, 'name', 'date')
             ?: $this->attribute($xpath, '//time[@datetime][1]', 'datetime');
 
-        return $this->item($url, $title, $body, $url, $this->nullableUrl($url, $image), $date);
+        $articleUrl = $this->xVideoUrl($url, $html) ?? $url;
+
+        return $this->item($url, $title, $body, $articleUrl, $this->nullableUrl($url, $image), $date);
     }
 
     /**
@@ -656,6 +658,7 @@ class NewsContentExtractor
             $statusId = $idMatch[1];
             $postUrl = 'https://'.parse_url($url, PHP_URL_HOST).'/'.$handle.'/status/'.$statusId;
             $image = $this->xTimelineImage($decodedHtml, $match[1]);
+            $postUrl = $this->xTimelineVideoUrl($decodedHtml, $match[1], $postUrl) ?? $postUrl;
             $publishedAt = Carbon::createFromTimestamp((int) floor(((int) $match[3]) / 1000));
             $title = $this->xTimelineTitle($text);
             $body = $text;
@@ -736,7 +739,31 @@ class NewsContentExtractor
         $host = Str::lower((string) parse_url($image, PHP_URL_HOST));
         $path = (string) parse_url($image, PHP_URL_PATH);
 
-        return $host === 'pbs.twimg.com' && str_starts_with($path, '/media/') ? $image : null;
+        return $host === 'pbs.twimg.com' && Str::startsWith($path, ['/media/', '/ext_tw_video_thumb/', '/amplify_video_thumb/']) ? $image : null;
+    }
+
+    private function xTimelineVideoUrl(string $html, string $tweetKey, string $postUrl): ?string
+    {
+        $pattern = '~"client:'.preg_quote($tweetKey, '~').':media_entities2:\d+"[\s\S]{0,6000}?(?:type:"video"|video_info:)~u';
+
+        return preg_match($pattern, $html) === 1 ? $postUrl.'/video/1' : null;
+    }
+
+    private function xVideoUrl(string $url, string $html): ?string
+    {
+        $postUrl = $this->xPostUrl($url);
+
+        if ($postUrl === null) {
+            return null;
+        }
+
+        if (preg_match('~/video/\d+/?$~', (string) parse_url($url, PHP_URL_PATH)) === 1) {
+            return $url;
+        }
+
+        $decodedHtml = html_entity_decode(str_replace(['\\u002F', '\\/'], '/', $html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+        return preg_match('~(?:type:"video"|video_info:)~u', $decodedHtml) === 1 ? $postUrl.'/video/1' : null;
     }
 
     private function decodeXString(string $value): string

@@ -164,7 +164,7 @@ class AiNewsWriter
         $configuredPrompt = trim((string) ($promptSnapshot['system_prompt'] ?? ''));
 
         return trim($configuredPrompt."\n\n".<<<'PROMPT'
-Aşağıdaki kurallar, kayıtlı özel prompt dahil diğer tüm editoryal talimatlardan üstündür. Sen deneyimli bir Türkçe kurumsal haber ajansı editörüsün. İHA, DHA ve AA'nın sade, tarafsız, doğrulanabilir ve ters piramit haber dilini kullan. En önemli gelişmeyi ilk paragrafta ver; sonraki paragraflarda ayrıntı ve bağlamı aktar. Yalnızca verilen editoryal girdideki doğrulanabilir bilgileri kullan; kişi, tarih, sayı veya alıntı uydurma. Sosyal medya girdisinde "Paylaşımı yapan:" bilgisi varsa kişinin tam adını, doğrulanmış resmî unvanını ve unvanda geçen yer veya kurum adını haber başlığında ve gövdesinde açıkça koru; birinci tekil anlatımı üçüncü kişi haber diline çevir. Profil bilgisinde bulunmayan unvanı uydurma. Cümleleri ve paragraf yapısını baştan kurarak tamamen özgün yaz; metni kopyalama. Başlık yanıltıcı veya tık tuzağı olmasın. Google'ın yararlı, güvenilir ve insan odaklı içerik ilkelerine uygun yaz; anahtar kelime doldurma yapma. Soru-cevap, SSS, "Merak edilenler" bölümü, madde halinde soru-cevap veya sonuç özeti ekleme. Çıktının hiçbir yerinde kaynak adı, kaynak URL'si, bağlantı, dipnot, kaynakça veya hazırlanma açıklaması verme. "Bu haber...", "Bu içerik...", "Kaynak:", "haberine göre", "kaynağına göre", "aktardığına göre" ve benzeri kaynak açıklama kalıplarını kullanma. Resmî kurum kaynaklarında kurumun sitesine, duyurusuna, kurumsal mecrasına veya bilginin doğruluğuna atıf yapan açıklamalar yazma; olayı doğrudan haberleştir. Yalnızca şu yapıda saf JSON döndür:
+Aşağıdaki kurallar, kayıtlı özel prompt dahil diğer tüm editoryal talimatlardan üstündür. Sen deneyimli bir Türkçe kurumsal haber ajansı editörüsün. İHA, DHA ve AA'nın sade, tarafsız, doğrulanabilir ve ters piramit haber dilini kullan. En önemli gelişmeyi ilk paragrafta ver; sonraki paragraflarda ayrıntı ve bağlamı aktar. Yalnızca verilen editoryal girdideki doğrulanabilir bilgileri kullan; kişi, tarih, sayı veya alıntı uydurma. Sosyal medya girdisinde "Paylaşımı yapan:" bilgisi varsa kişinin tam adını, doğrulanmış resmî unvanını ve unvanda geçen yer veya kurum adını haber başlığında ve gövdesinde açıkça koru; birinci tekil anlatımı üçüncü kişi haber diline çevir. Profil bilgisinde bulunmayan unvanı uydurma. Siyasi parti adında "AKP", "AKP'li" veya benzeri kullanımlar yapma; her zaman "AK Parti", "AK Partili" ya da gerektiğinde "Adalet ve Kalkınma Partisi" ifadelerini kullan. Cümleleri ve paragraf yapısını baştan kurarak tamamen özgün yaz; metni kopyalama. Başlık yanıltıcı veya tık tuzağı olmasın. Google'ın yararlı, güvenilir ve insan odaklı içerik ilkelerine uygun yaz; anahtar kelime doldurma yapma. Soru-cevap, SSS, "Merak edilenler" bölümü, madde halinde soru-cevap veya sonuç özeti ekleme. Çıktının hiçbir yerinde kaynak adı, kaynak URL'si, bağlantı, dipnot, kaynakça veya hazırlanma açıklaması verme. "Bu haber...", "Bu içerik...", "Kaynak:", "haberine göre", "kaynağına göre", "aktardığına göre" ve benzeri kaynak açıklama kalıplarını kullanma. Resmî kurum kaynaklarında kurumun sitesine, duyurusuna, kurumsal mecrasına veya bilginin doğruluğuna atıf yapan açıklamalar yazma; olayı doğrudan haberleştir. Yalnızca şu yapıda saf JSON döndür:
 {"title":"anlamı tamamlanmış, tercihen 35-100 karakter haber başlığı; kelimeyi veya cümleyi yarım bırakma","summary":"120-160 karakter meta açıklama","body":"yalnızca kaynak ayrıntılarının desteklediği, yaklaşık hedef uzunlukta ve en az 6 anlamlı paragraftan oluşan haber metni","focus_keyword":"doğal odak sorgu","keywords":["6-10 alakalı anahtar kelime veya sorgu"],"hashtags":["#EnFazla5Etiket"],"category":"tek ve genel haber kategorisi"}
 PROMPT);
     }
@@ -217,6 +217,16 @@ PROMPT;
             ->all();
         $category = Str::of(strip_tags($this->stripExternalLinks((string) ($decoded['category'] ?? 'Gündem'))))->squish()->limit(80, '')->toString();
 
+        $title = $this->normalizePoliticalPartyNames($title);
+        $summary = $this->normalizePoliticalPartyNames($summary);
+        $body = $this->normalizePoliticalPartyNames($body);
+        $focusKeyword = $this->normalizePoliticalPartyNames($focusKeyword);
+        $keywords = array_map($this->normalizePoliticalPartyNames(...), $keywords);
+        $hashtags = collect($hashtags)
+            ->map(fn (string $hashtag): string => '#'.Str::studly($this->normalizePoliticalPartyNames(Str::after($hashtag, '#'))))
+            ->all();
+        $category = $this->normalizePoliticalPartyNames($category);
+
         if ($title === '' || Str::length(strip_tags($body)) < 100) {
             throw new RuntimeException('Sağlayıcı eksik veya geçersiz haber JSON verisi döndürdü.');
         }
@@ -260,6 +270,14 @@ PROMPT;
         $text = preg_replace('/\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:com|net|org|tr|com\.tr|gov\.tr|bel\.tr)\b(?:\/[^\s<>\]\)]*)?/iu', '', $text) ?? $text;
 
         return $text;
+    }
+
+    private function normalizePoliticalPartyNames(string $text): string
+    {
+        $text = preg_replace("/\bAKP\s*['’\x60]?\s*li\b/iu", 'AK Partili', $text) ?? $text;
+        $text = preg_replace("/\bAKP\s*['’\x60]?\s*(nin|nın|nun|nün|ye|ya|den|dan|de|da)\b/iu", "AK Parti'$1", $text) ?? $text;
+
+        return preg_replace('/\bAKP\b/iu', 'AK Parti', $text) ?? $text;
     }
 
     private function assertAgencyStyle(string $title, string $summary, string $body): void

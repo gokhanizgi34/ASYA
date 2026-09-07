@@ -69,6 +69,53 @@ class AiNewsWriterTest extends TestCase
             && str_contains((string) data_get($request->data(), 'messages.1.content'), $rawNewsItem->original_title));
     }
 
+    public function test_akp_term_is_normalized_in_all_generated_text_fields(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://93.184.216.34/v1/chat/completions' => Http::response([
+                'choices' => [[
+                    'message' => ['content' => json_encode([
+                        'title' => "AKP'li belediye başkanı açıklama yaptı",
+                        'summary' => "AKP'nin yerel yönetim çalışmasına ilişkin açıklamanın ayrıntıları kamuoyuyla paylaşıldı.",
+                        'body' => $this->istanbulGeneratedBody()."\n\nAKP’li belediye başkanı yeni çalışmanın ayrıntılarını açıkladı.",
+                        'focus_keyword' => 'AKP açıklaması',
+                        'keywords' => ["AKP'li belediye", 'AKP'],
+                        'hashtags' => ['#AKP', '#AKPli'],
+                    ], JSON_UNESCAPED_UNICODE)],
+                ]],
+            ]),
+        ]);
+        $agency = Agency::factory()->create();
+        ApiIntegration::factory()->for($agency)->create([
+            'provider' => IntegrationProvider::OpenAi,
+            'base_url' => 'https://93.184.216.34/v1/models',
+            'credential' => 'party-name-key',
+            'is_active' => true,
+            'is_default' => true,
+        ]);
+        $rawNewsItem = RawNewsItem::factory()->for($agency)->create([
+            'original_title' => 'Yerel yönetim çalışması açıklandı',
+            'original_body' => $this->istanbulSourceBody(),
+        ]);
+
+        $result = app(AiNewsWriter::class)->write($rawNewsItem, ['target_length' => 600]);
+
+        $this->assertSame('AK Partili belediye başkanı açıklama yaptı', $result['title']);
+        $this->assertSame("AK Parti'nin yerel yönetim çalışmasına ilişkin açıklamanın ayrıntıları kamuoyuyla paylaşıldı.", $result['summary']);
+        $this->assertSame('AK Parti açıklaması', $result['focus_keyword']);
+        $this->assertSame(['AK Partili belediye', 'AK Parti'], $result['keywords']);
+        $this->assertSame(['#AKParti', '#AKPartili'], $result['hashtags']);
+        $textFields = implode(' ', [
+            $result['title'],
+            $result['summary'],
+            $result['body'],
+            $result['focus_keyword'],
+            ...$result['keywords'],
+        ]);
+        $this->assertDoesNotMatchRegularExpression("/\bAKP(?:['\x{2019}]?li)?\b/iu", $textFields);
+    }
+
     public function test_trend_signal_prompt_requires_a_normal_news_story_without_system_phrases(): void
     {
         Http::preventStrayRequests();

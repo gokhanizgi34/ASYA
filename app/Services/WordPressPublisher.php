@@ -456,7 +456,35 @@ class WordPressPublisher
             })
             ->implode("\n");
 
-        return $formatted."\n".'<p><a href="'.e($searchUrl).'">'.e((string) $searchTerm).' haberleri</a></p>';
+        $xVideoEmbed = $this->xVideoEmbed($publication);
+
+        return $formatted.($xVideoEmbed !== '' ? "\n".$xVideoEmbed : '')."\n".'<p><a href="'.e($searchUrl).'">'.e((string) $searchTerm).' haberleri</a></p>';
+    }
+
+    private function xVideoEmbed(Publication $publication): string
+    {
+        $sourceUrl = (string) $publication->article?->source_url;
+        $host = Str::lower((string) parse_url($sourceUrl, PHP_URL_HOST));
+        $path = (string) parse_url($sourceUrl, PHP_URL_PATH);
+
+        if (! in_array($host, ['x.com', 'www.x.com', 'twitter.com', 'www.twitter.com'], true)
+            || preg_match('~^/([A-Za-z0-9_]+)/status/(\d+)/video/\d+/?$~', $path, $matches) !== 1) {
+            return '';
+        }
+
+        $postUrl = 'https://x.com/'.$matches[1].'/status/'.$matches[2];
+        $attributes = json_encode([
+            'url' => $postUrl,
+            'type' => 'rich',
+            'providerNameSlug' => 'twitter',
+            'responsive' => true,
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+        return '<!-- wp:embed '.$attributes.' -->'."\n"
+            .'<figure class="wp-block-embed is-type-rich is-provider-twitter wp-block-embed-twitter"><div class="wp-block-embed__wrapper">'."\n"
+            .e($postUrl)."\n"
+            .'</div></figure>'."\n"
+            .'<!-- /wp:embed -->';
     }
 
     private function guardTargetUrl(string $url): void

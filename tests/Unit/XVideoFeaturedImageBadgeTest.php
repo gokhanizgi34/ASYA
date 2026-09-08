@@ -19,7 +19,12 @@ class XVideoFeaturedImageBadgeTest extends TestCase
         $this->assertNotSame($original, $result);
         $image = imagecreatefromstring($result);
         $this->assertInstanceOf(\GdImage::class, $image);
-        $color = imagecolorsforindex($image, imagecolorat($image, 780, 20));
+        $topColor = imagecolorsforindex($image, imagecolorat($image, 780, 20));
+        $this->assertSame(20, $topColor['red']);
+        $this->assertSame(40, $topColor['green']);
+        $this->assertSame(80, $topColor['blue']);
+
+        $color = imagecolorsforindex($image, imagecolorat($image, 780, 60));
         $this->assertGreaterThan(150, $color['red']);
         $this->assertLessThan(100, $color['green']);
         $this->assertLessThan(100, $color['blue']);

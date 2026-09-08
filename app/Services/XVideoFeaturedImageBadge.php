@@ -44,7 +44,8 @@ class XVideoFeaturedImageBadge
             $badgeHeight = max(48, (int) round($fontSize * 1.75));
             $margin = max(14, (int) round($width * 0.02));
             $left = max(0, $width - $badgeWidth - $margin);
-            $top = min($height - $badgeHeight, $margin);
+            $safeTop = max($margin, (int) round($height * 0.12));
+            $top = min($height - $badgeHeight - $margin, $safeTop);
             $right = min($width - 1, $left + $badgeWidth);
             $bottom = min($height - 1, $top + $badgeHeight);
             $red = imagecolorallocatealpha($image, 205, 24, 35, 8);

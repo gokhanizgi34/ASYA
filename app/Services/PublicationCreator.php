@@ -85,6 +85,9 @@ class PublicationCreator
                     'asya_hashtags' => $article->seoAnalysis->hashtags,
                     'asya_taxonomy_matches' => $taxonomy['matched_terms'],
                     'asya_district_category' => $districtCategory,
+                    'rank_math_title' => $article->seoAnalysis->meta_title,
+                    'rank_math_description' => $article->seoAnalysis->meta_description,
+                    'rank_math_focus_keyword' => $article->seoAnalysis->focus_keyword,
                 ],
                 'media' => $article->selectedVisualAsset ? [
                     'disk' => $article->selectedVisualAsset->storage_disk,

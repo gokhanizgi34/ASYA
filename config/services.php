@@ -43,6 +43,12 @@ return [
     'gemini' => [
         'image_model' => env('GEMINI_IMAGE_MODEL', 'gemini-3.1-flash-image'),
     ],
+    'x' => [
+        'client_id' => env('X_CLIENT_ID'),
+        'client_secret' => env('X_CLIENT_SECRET'),
+        'redirect_uri' => env('X_REDIRECT_URI'),
+    ],
+
     'external_trends' => [
         'google_geo' => env('GOOGLE_TRENDS_GEO', 'TR'),
         'google_rss_url' => env('GOOGLE_TRENDS_RSS_URL', 'https://trends.google.com/trending/rss?geo=TR'),

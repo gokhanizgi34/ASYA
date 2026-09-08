@@ -20,7 +20,8 @@ class SeoAnalyzerTest extends TestCase
 
         $this->assertLessThan(60, $result['score']);
         $this->assertContains('Haber metni kısa.', $result['issues']);
-        $this->assertContains('Odak anahtar kelime başlıkta bulunmuyor.', $result['issues']);
+        $this->assertContains('Odak anahtar kelime SEO başlığında bulunmuyor.', $result['issues']);
+        $this->assertContains('Odak anahtar kelime haber metninde bulunmuyor.', $result['issues']);
         $this->assertLessThan(10, $result['word_count']);
     }
 

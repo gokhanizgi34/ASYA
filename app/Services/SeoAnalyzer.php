@@ -18,23 +18,23 @@ class SeoAnalyzer
      */
     public function analyze(Article $article, ?string $requestedFocusKeyword = null): array
     {
-        $plainBody = trim(strip_tags($article->body));
-        $plainSummary = trim(strip_tags((string) $article->summary));
+        $plainBody = Str::of(strip_tags($article->body))->replaceMatches('/\s+/u', ' ')->squish()->toString();
+        $plainSummary = Str::of(strip_tags((string) $article->summary))->replaceMatches('/\s+/u', ' ')->squish()->toString();
         $words = $this->words($plainBody);
         $wordCount = count($words);
         $keywords = $this->extractKeywords($article->title.' '.$plainBody);
-        $focusKeyword = trim((string) $requestedFocusKeyword) ?: ($keywords[0] ?? Str::lower($article->title));
-        $metaTitle = Str::limit(trim($article->title), 60, '');
-        $metaDescription = Str::limit($plainSummary ?: $plainBody, 155, '');
+        $focusKeyword = $this->focusKeyword($article->title, $plainBody, $requestedFocusKeyword, $keywords);
+        $metaTitle = $this->metaTitle($article->title);
+        $metaDescription = Str::limit(Str::of($plainSummary.' '.$plainBody)->squish()->toString(), 155, '');
         $keywordDensity = $this->keywordDensity($plainBody, $focusKeyword, $wordCount);
         $readabilityScore = $this->readabilityScore($plainBody, $wordCount);
         [$score, $issues, $recommendations] = $this->score(
-            $article->title,
+            $metaTitle,
             $metaDescription,
+            $article->body,
             $plainBody,
             $focusKeyword,
             $wordCount,
-            $keywordDensity,
             $readabilityScore,
         );
 
@@ -54,20 +54,15 @@ class SeoAnalyzer
         ];
     }
 
-    /**
-     * @return array<int, string>
-     */
+    /** @return array<int, string> */
     private function words(string $text): array
     {
-        $normalized = Str::lower(strip_tags($text));
-        $words = preg_split('/[^\p{L}\p{N}]+/u', $normalized, -1, PREG_SPLIT_NO_EMPTY);
+        $words = preg_split('/[^\p{L}\p{N}]+/u', Str::lower(strip_tags($text)), -1, PREG_SPLIT_NO_EMPTY);
 
         return is_array($words) ? $words : [];
     }
 
-    /**
-     * @return array<int, string>
-     */
+    /** @return array<int, string> */
     private function extractKeywords(string $text): array
     {
         $frequency = [];
@@ -85,16 +80,45 @@ class SeoAnalyzer
         return array_slice(array_keys($frequency), 0, 8);
     }
 
+    /** @param array<int, string> $keywords */
+    private function focusKeyword(string $title, string $body, ?string $requested, array $keywords): string
+    {
+        $requested = Str::of((string) $requested)->lower()->squish()->toString();
+        $titleLower = Str::lower($title);
+        $bodyLower = Str::lower($body);
+
+        if ($requested !== '') {
+            return $requested;
+        }
+
+        foreach ($keywords as $keyword) {
+            if (Str::contains($titleLower, $keyword) && Str::contains($bodyLower, $keyword)) {
+                return $keyword;
+            }
+        }
+
+        return $requested ?: ($keywords[0] ?? Str::lower(Str::words($title, 3, '')));
+    }
+
+    private function metaTitle(string $title): string
+    {
+        $title = Str::squish(strip_tags($title));
+
+        if (mb_strlen($title) < 30) {
+            $title .= ' | Güncel İlçe Haberleri';
+        }
+
+        return Str::limit($title, 60, '');
+    }
+
     private function keywordDensity(string $body, string $focusKeyword, int $wordCount): float
     {
         if ($wordCount === 0 || $focusKeyword === '') {
             return 0.0;
         }
 
-        $normalizedBody = Str::lower($body);
-        $normalizedKeyword = Str::lower($focusKeyword);
-        $occurrences = substr_count($normalizedBody, $normalizedKeyword);
-        $keywordWords = max(1, count($this->words($normalizedKeyword)));
+        $occurrences = substr_count(Str::lower($body), Str::lower($focusKeyword));
+        $keywordWords = max(1, count($this->words($focusKeyword)));
 
         return round(($occurrences * $keywordWords / $wordCount) * 100, 2);
     }
@@ -112,57 +136,53 @@ class SeoAnalyzer
         return max(0, min(100, (int) round(100 - max(0, $averageWords - 15) * 3)));
     }
 
-    /**
-     * @return array{int, array<int, string>, array<int, string>}
-     */
-    private function score(string $title, string $description, string $body, string $focusKeyword, int $wordCount, float $density, int $readability): array
+    /** @return array{int, array<int, string>, array<int, string>} */
+    private function score(string $metaTitle, string $description, string $body, string $plainBody, string $focusKeyword, int $wordCount, int $readability): array
     {
         $score = 100;
         $issues = [];
         $recommendations = [];
-        $titleLength = mb_strlen($title);
-        $descriptionLength = mb_strlen($description);
 
-        if ($titleLength < 30 || $titleLength > 65) {
+        if (mb_strlen($metaTitle) < 30 || mb_strlen($metaTitle) > 60) {
             $score -= 15;
-            $issues[] = 'Başlık uzunluğu SEO aralığının dışında.';
-            $recommendations[] = 'Başlığı 30-65 karakter aralığında tutun.';
+            $issues[] = 'SEO başlığı uygun uzunlukta değil.';
+            $recommendations[] = 'SEO başlığını 30-60 karakter aralığında tutun.';
         }
 
-        if ($descriptionLength < 120 || $descriptionLength > 160) {
+        if (mb_strlen($description) < 120 || mb_strlen($description) > 160) {
             $score -= 15;
             $issues[] = 'Meta açıklama uzunluğu uygun değil.';
             $recommendations[] = 'Meta açıklamayı 120-160 karakter aralığında hazırlayın.';
         }
 
-        if ($wordCount < 300) {
-            $score -= 20;
+        if ($wordCount < 60) {
+            $score -= 30;
             $issues[] = 'Haber metni kısa.';
-            $recommendations[] = 'İçeriği en az 300 kelimeye tamamlayın.';
+            $recommendations[] = 'Doğrulanabilen ayrıntıları kısa paragraflarla açıklayın.';
         }
 
-        if (! Str::contains(Str::lower($title), Str::lower($focusKeyword))) {
+        if ($focusKeyword === '' || ! Str::contains(Str::lower($metaTitle), Str::lower($focusKeyword))) {
             $score -= 15;
-            $issues[] = 'Odak anahtar kelime başlıkta bulunmuyor.';
-            $recommendations[] = 'Odak anahtar kelimeyi doğal biçimde başlığa ekleyin.';
+            $issues[] = 'Odak anahtar kelime SEO başlığında bulunmuyor.';
+            $recommendations[] = 'Odak anahtar kelimeyi doğal biçimde SEO başlığına ekleyin.';
         }
 
-        if ($density < 0.5 || $density > 3.0) {
+        if ($focusKeyword === '' || ! Str::contains(Str::lower($plainBody), Str::lower($focusKeyword))) {
             $score -= 15;
-            $issues[] = 'Anahtar kelime yoğunluğu önerilen aralığın dışında.';
-            $recommendations[] = 'Anahtar kelime yoğunluğunu %0,5-%3 aralığına getirin.';
+            $issues[] = 'Odak anahtar kelime haber metninde bulunmuyor.';
+            $recommendations[] = 'Odak anahtar kelimeyi haber metninde doğal biçimde kullanın.';
         }
 
         if ($readability < 60) {
-            $score -= 10;
+            $score -= 15;
             $issues[] = 'Cümleler ortalama olarak çok uzun.';
             $recommendations[] = 'Uzun cümleleri bölerek okunabilirliği artırın.';
         }
 
-        if (! preg_match('/(?:^|\R)#{1,3}\s+/u', $body)) {
-            $score -= 10;
-            $issues[] = 'Metinde ara başlık bulunmuyor.';
-            $recommendations[] = 'Metni H2/H3 niteliğinde ara başlıklarla bölün.';
+        if ($wordCount >= 180 && preg_match('/(?:^|\R)#{2,3}\s+|<h[23]\b/iu', $body) !== 1) {
+            $score -= 15;
+            $issues[] = 'Uzun metinde ara başlık bulunmuyor.';
+            $recommendations[] = 'Uzun metni H2/H3 niteliğinde ara başlıklarla bölün.';
         }
 
         return [max(0, $score), $issues, array_values(array_unique($recommendations))];

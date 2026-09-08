@@ -9,7 +9,10 @@ use RuntimeException;
 
 class SocialPublisher
 {
-    public function __construct(private readonly XOAuth1Signer $oauth1Signer) {}
+    public function __construct(
+        private readonly XOAuth1Signer $oauth1Signer,
+        private readonly XOAuth2Service $oauth2Service,
+    ) {}
 
     public function publish(SocialPost $post): string
     {
@@ -49,7 +52,10 @@ class SocialPublisher
                 ),
             ]);
         } else {
-            $request = $request->withToken((string) $account->access_token);
+            $accessToken = $account->auth_type === 'oauth2_pkce'
+                ? $this->oauth2Service->accessToken($account)
+                : (string) $account->access_token;
+            $request = $request->withToken($accessToken);
         }
 
         $response = $request

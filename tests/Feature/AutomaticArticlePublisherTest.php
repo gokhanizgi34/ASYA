@@ -80,6 +80,10 @@ class AutomaticArticlePublisherTest extends TestCase
         $this->assertSame('Pendik', data_get($publication->payload, 'meta.asya_district_category'));
         $this->assertSame([34, 56], data_get($publication->payload, 'tags'));
         $this->assertNotEmpty(data_get($publication->payload, 'meta.asya_keywords'));
+        $this->assertSame($article->seoAnalysis->meta_title, data_get($publication->payload, 'meta.rank_math_title'));
+        $this->assertSame($article->seoAnalysis->meta_description, data_get($publication->payload, 'meta.rank_math_description'));
+        $this->assertSame($article->seoAnalysis->focus_keyword, data_get($publication->payload, 'meta.rank_math_focus_keyword'));
+        $this->assertSame($article->title, data_get($publication->payload, 'media.alt_text'));
         $this->assertSame($visual->storage_path, data_get($publication->payload, 'media.path'));
         Queue::assertPushedOn('publishing', PublishArticleToWordPress::class, fn (PublishArticleToWordPress $job): bool => $job->publicationId === $publication->id);
         Http::assertSent(fn (Request $request): bool => $request->url() === 'https://93.184.216.34/images/source.png');

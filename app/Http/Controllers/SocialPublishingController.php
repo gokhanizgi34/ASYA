@@ -10,6 +10,7 @@ use App\Models\Article;
 use App\Models\SocialPost;
 use App\Models\SocialPublishingAccount;
 use App\Models\User;
+use App\Services\XOAuth2Service;
 use App\SocialPostStatus;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -18,7 +19,7 @@ use Illuminate\View\View;
 
 class SocialPublishingController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request, XOAuth2Service $oauth): View
     {
         Gate::authorize('viewAny', SocialPost::class);
         $user = $request->user();
@@ -29,6 +30,8 @@ class SocialPublishingController extends Controller
             'posts' => SocialPost::query()->visibleTo($user)->with(['account', 'article'])->latest()->paginate(20),
             'agencies' => Agency::query()->where('is_active', true)->when(! $user->isSystemAdministrator(), fn ($query) => $query->whereKey($user->agency_id))->get(),
             'articles' => Article::query()->visibleTo($user)->latest()->limit(100)->get(),
+            'xOAuthConfigured' => $oauth->configured(),
+            'xOAuthCallbackUrl' => $oauth->callbackUrl(),
         ]);
     }
 

@@ -21,6 +21,8 @@ class GeneratedContentPublicationService
     public function __construct(
         private readonly PublicationCreator $publicationCreator,
         private readonly AutomaticArticleVisualManager $visualManager,
+        private readonly SeoAnalyzer $seoAnalyzer,
+        private readonly SeoContentOptimizer $seoContentOptimizer,
     ) {}
 
     /**
@@ -56,22 +58,15 @@ class GeneratedContentPublicationService
                 'failure_message' => null,
             ])->save();
 
-            $keywords = collect($content['keywords'] ?? [])->filter()->take(12)->values()->all();
-            SeoAnalysis::query()->updateOrCreate(['article_id' => $article->id], [
-                'agency_id' => $agencyId,
-                'focus_keyword' => $keywords[0] ?? Str::lower(Str::words($article->title, 4, '')),
-                'meta_title' => Str::limit($article->title, 70, ''),
-                'meta_description' => Str::limit($article->summary, 160, ''),
-                'keywords' => $keywords,
-                'hashtags' => collect($content['hashtags'] ?? [])->filter()->take(8)->values()->all(),
-                'score' => 90,
-                'readability_score' => 90,
-                'word_count' => count(preg_split('/\s+/u', strip_tags($article->body)) ?: []),
-                'keyword_density' => 0,
-                'issues' => [],
-                'recommendations' => [],
-                'analyzed_at' => now(),
-            ]);
+            $article = $this->seoContentOptimizer->optimize($article, $article->title);
+            $seo = $this->seoAnalyzer->analyze($article);
+            $seo['keywords'] = collect([...(array) ($content['keywords'] ?? []), ...$seo['keywords']])->filter()->unique()->take(12)->values()->all();
+            $seo['hashtags'] = collect([...(array) ($content['hashtags'] ?? []), ...$seo['hashtags']])->filter()->unique()->take(8)->values()->all();
+
+            SeoAnalysis::query()->updateOrCreate(
+                ['article_id' => $article->id],
+                ['agency_id' => $agencyId, ...$seo],
+            );
 
             return $article;
         }, 5);

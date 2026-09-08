@@ -77,6 +77,7 @@ use App\Http\Controllers\VisualAssetController;
 use App\Http\Controllers\VisualAssetEvaluationController;
 use App\Http\Controllers\VisualAssetFileController;
 use App\Http\Controllers\VisualAssetSelectionController;
+use App\Http\Controllers\XOAuthConnectionController;
 use App\Http\Controllers\XTrendQuotaController;
 use App\Http\Middleware\ApplySystemSettings;
 use App\Http\Middleware\EnsureUserIsActive;
@@ -225,6 +226,8 @@ Route::middleware(['auth', EnsureUserIsActive::class, ApplySystemSettings::class
     Route::post('/kaynak-guven/kaynaklar/{newsSource}/haberleri-cek', NewsSourceImportController::class)->name('source-trust.sources.import');
 
     Route::get('/sosyal-yayinci', [SocialPublishingController::class, 'index'])->name('social-publishing.index');
+    Route::get('/sosyal-yayinci/x/baglan', [XOAuthConnectionController::class, 'connect'])->middleware('throttle:10,1')->name('x-oauth.connect');
+    Route::get('/sosyal-yayinci/x/geri-donus', [XOAuthConnectionController::class, 'callback'])->middleware('throttle:20,1')->name('x-oauth.callback');
     Route::post('/sosyal-yayinci/hesaplar', [SocialPublishingController::class, 'storeAccount'])->name('social-publishing.accounts.store');
     Route::patch('/sosyal-yayinci/hesaplar/{socialPublishingAccount}', [SocialPublishingController::class, 'updateAccount'])->name('social-publishing.accounts.update');
     Route::post('/sosyal-yayinci/gonderiler', [SocialPublishingController::class, 'storePost'])->name('social-publishing.posts.store');

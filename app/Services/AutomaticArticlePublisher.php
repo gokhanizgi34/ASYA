@@ -20,6 +20,7 @@ class AutomaticArticlePublisher
 {
     public function __construct(
         private readonly SeoAnalyzer $seoAnalyzer,
+        private readonly SeoContentOptimizer $seoContentOptimizer,
         private readonly AutomaticArticleVisualManager $visualManager,
         private readonly PublicationCreator $publicationCreator,
         private readonly NewsContentQualityGate $qualityGate,
@@ -56,7 +57,8 @@ class AutomaticArticlePublisher
             throw new RuntimeException('Haberi göndermek için aktif bir WordPress yayın hedefi bulunamadı.');
         }
 
-        $seo = $this->seoAnalyzer->analyze($article, data_get($article->editorial_metadata, 'focus_keyword'));
+        $article = $this->seoContentOptimizer->optimize($article, $article->title);
+        $seo = $this->seoAnalyzer->analyze($article);
         $seo['keywords'] = collect([...(array) data_get($article->editorial_metadata, 'keywords', []), ...$seo['keywords']])
             ->filter(fn (mixed $keyword): bool => is_string($keyword) && filled($keyword))
             ->map(fn (string $keyword): string => Str::of(strip_tags($keyword))->squish()->limit(120, '')->toString())

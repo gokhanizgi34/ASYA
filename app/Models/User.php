@@ -51,6 +51,11 @@ class User extends Authenticatable
         return $this->role === UserRole::AgencyOwner;
     }
 
+    public function isEditor(): bool
+    {
+        return $this->role === UserRole::Editor;
+    }
+
     /**
      * @return array<string, string>
      */

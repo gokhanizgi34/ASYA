@@ -67,6 +67,7 @@ class PublishArticleToWordPress implements ShouldBeUnique, ShouldQueue
                 ->with('article:id,title')
                 ->where('agency_id', $publication->agency_id)
                 ->where('status', PublicationStatus::Published)
+                ->where('article_id', '!=', $publication->article_id)
                 ->whereKeyNot($publication->id)
                 ->latest('published_at')
                 ->limit(1000)

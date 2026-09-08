@@ -16,22 +16,28 @@ class PublishingTargetControllerTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_editor_cannot_manage_publishing_targets(): void
+    public function test_only_editor_can_create_a_wordpress_target_for_own_agency(): void
     {
         $agency = Agency::factory()->create();
         $editor = User::factory()->editor()->for($agency)->create();
+        $owner = User::factory()->agencyOwner()->for($agency)->create();
+        $administrator = User::factory()->systemAdministrator()->create();
 
-        $this->actingAs($editor)->get(route('publishing-targets.index'))->assertForbidden();
-        $this->actingAs($editor)->post(route('publishing-targets.store'), $this->payload($agency->id))->assertForbidden();
+        $this->actingAs($owner)->get(route('publishing-targets.create'))->assertForbidden();
+        $this->actingAs($owner)->post(route('publishing-targets.store'), $this->payload($agency->id))->assertForbidden();
+        $this->actingAs($administrator)->post(route('publishing-targets.store'), $this->payload($agency->id))->assertForbidden();
+        $this->actingAs($editor)->post(route('publishing-targets.store'), $this->payload($agency->id))->assertRedirect(route('publishing-targets.index'));
+
+        $this->assertDatabaseCount('publishing_targets', 1);
     }
 
-    public function test_owner_creates_only_own_target_and_credential_is_encrypted_and_hidden(): void
+    public function test_editor_creates_only_own_target_and_credential_is_encrypted_and_hidden(): void
     {
         $agency = Agency::factory()->create();
         $otherAgency = Agency::factory()->create();
-        $owner = User::factory()->agencyOwner()->for($agency)->create();
+        $editor = User::factory()->editor()->for($agency)->create();
 
-        $this->actingAs($owner)->post(route('publishing-targets.store'), $this->payload($otherAgency->id))->assertRedirect(route('publishing-targets.index'));
+        $this->actingAs($editor)->post(route('publishing-targets.store'), $this->payload($otherAgency->id))->assertRedirect(route('publishing-targets.index'));
 
         $target = PublishingTarget::query()->firstOrFail();
         $this->assertSame($agency->id, $target->agency_id);
@@ -55,10 +61,10 @@ class PublishingTargetControllerTest extends TestCase
     public function test_private_and_local_addresses_are_rejected(): void
     {
         $agency = Agency::factory()->create();
-        $owner = User::factory()->agencyOwner()->for($agency)->create();
+        $editor = User::factory()->editor()->for($agency)->create();
 
-        $this->actingAs($owner)->post(route('publishing-targets.store'), $this->payload($agency->id, ['base_url' => 'http://127.0.0.1']))->assertSessionHasErrors('base_url');
-        $this->actingAs($owner)->post(route('publishing-targets.store'), $this->payload($agency->id, ['base_url' => 'http://wordpress.local']))->assertSessionHasErrors('base_url');
+        $this->actingAs($editor)->post(route('publishing-targets.store'), $this->payload($agency->id, ['base_url' => 'http://127.0.0.1']))->assertSessionHasErrors('base_url');
+        $this->actingAs($editor)->post(route('publishing-targets.store'), $this->payload($agency->id, ['base_url' => 'http://wordpress.local']))->assertSessionHasErrors('base_url');
         $this->assertDatabaseCount('publishing_targets', 0);
     }
 
@@ -66,11 +72,11 @@ class PublishingTargetControllerTest extends TestCase
     {
         $firstAgency = Agency::factory()->create();
         $secondAgency = Agency::factory()->create();
-        $firstOwner = User::factory()->agencyOwner()->for($firstAgency)->create();
-        $secondOwner = User::factory()->agencyOwner()->for($secondAgency)->create();
+        $firstEditor = User::factory()->editor()->for($firstAgency)->create();
+        $secondEditor = User::factory()->editor()->for($secondAgency)->create();
 
-        $this->actingAs($firstOwner)->post(route('publishing-targets.store'), $this->payload($firstAgency->id));
-        $this->actingAs($secondOwner)->post(route('publishing-targets.store'), $this->payload($secondAgency->id, [
+        $this->actingAs($firstEditor)->post(route('publishing-targets.store'), $this->payload($firstAgency->id));
+        $this->actingAs($secondEditor)->post(route('publishing-targets.store'), $this->payload($secondAgency->id, [
             'name' => 'İkinci hedef',
             'base_url' => 'https://news.example.com/',
         ]))->assertSessionHasErrors('base_url');
@@ -94,11 +100,11 @@ class PublishingTargetControllerTest extends TestCase
     public function test_deleted_site_target_can_be_registered_again_for_the_same_agency(): void
     {
         $agency = Agency::factory()->create();
-        $owner = User::factory()->agencyOwner()->for($agency)->create();
+        $editor = User::factory()->editor()->for($agency)->create();
         $target = PublishingTarget::factory()->for($agency)->create(['base_url' => 'https://www.ilcehaber.com']);
         $target->delete();
 
-        $this->actingAs($owner)->post(route('publishing-targets.store'), $this->payload($agency->id, [
+        $this->actingAs($editor)->post(route('publishing-targets.store'), $this->payload($agency->id, [
             'name' => 'İlçe Haber',
             'base_url' => 'https://www.ilcehaber.com/',
         ]))->assertRedirect(route('publishing-targets.index'));
@@ -110,11 +116,11 @@ class PublishingTargetControllerTest extends TestCase
     public function test_deleted_site_target_with_the_same_name_can_be_registered_again(): void
     {
         $agency = Agency::factory()->create();
-        $owner = User::factory()->agencyOwner()->for($agency)->create();
+        $editor = User::factory()->editor()->for($agency)->create();
         $target = PublishingTarget::factory()->for($agency)->create(['name' => 'haber', 'base_url' => 'https://www.ilcehaber.com']);
         $target->delete();
 
-        $this->actingAs($owner)->post(route('publishing-targets.store'), $this->payload($agency->id, [
+        $this->actingAs($editor)->post(route('publishing-targets.store'), $this->payload($agency->id, [
             'name' => 'haber',
             'base_url' => 'https://www.ilcehaber.com/',
         ]))->assertRedirect(route('publishing-targets.index'));

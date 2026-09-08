@@ -44,6 +44,12 @@ class Article extends Model
         return $this->hasMany(VisualAsset::class);
     }
 
+    /** @return HasMany<Publication, $this> */
+    public function publications(): HasMany
+    {
+        return $this->hasMany(Publication::class);
+    }
+
     /** @return HasOne<VisualAsset, $this> */
     public function selectedVisualAsset(): HasOne
     {

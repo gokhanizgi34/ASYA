@@ -28,4 +28,13 @@ class ArticleBodyFormatterTest extends TestCase
         $this->assertStringContainsString('<h4 style="margin:1.375rem 0 0.625rem;line-height:1.35">Ayrıntı</h4>', $formatted);
         $this->assertStringContainsString('<p style="margin:0 0 1.125rem;line-height:1.75">İlk paragraf.</p>', $formatted);
     }
+
+    public function test_recovers_inline_headings_and_splits_long_legacy_paragraphs(): void
+    {
+        $body = 'İlk cümle. İkinci cümle. Üçüncü cümle. Dördüncü cümle. Beşinci cümle. ## Gizli Kamera İncelemeye Alındı Ekipler olay yerinde araştırma yaptı. İnceleme sürüyor.';
+
+        $formatted = (new ArticleBodyFormatter)->normalizeMarkdown($body);
+
+        $this->assertSame("İlk cümle. İkinci cümle. Üçüncü cümle.\n\nDördüncü cümle. Beşinci cümle.\n\n## Gizli Kamera İncelemeye Alındı\n\nEkipler olay yerinde araştırma yaptı. İnceleme sürüyor.", $formatted);
+    }
 }

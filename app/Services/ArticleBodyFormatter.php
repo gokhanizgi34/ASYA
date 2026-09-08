@@ -10,6 +10,7 @@ class ArticleBodyFormatter
     {
         $body = str_replace(["\r\n", "\r"], "\n", trim($body));
         $body = preg_replace('/[ \t]+\n/u', "\n", $body) ?? $body;
+        $body = $this->separateInlineHeadings($body);
         $blocks = preg_split('/\n{2,}/u', $body, -1, PREG_SPLIT_NO_EMPTY) ?: [];
         $currentHeadingLevel = 1;
 
@@ -18,7 +19,7 @@ class ArticleBodyFormatter
                 $block = trim($block);
 
                 if (preg_match('/^(#{1,6})\s+(.+)$/us', $block, $matches) !== 1) {
-                    return $block;
+                    return $this->normalizeParagraphBlock($block);
                 }
 
                 $requestedLevel = max(2, min(4, mb_strlen($matches[1])));
@@ -59,5 +60,65 @@ class ArticleBodyFormatter
                 return '<p style="margin:0 0 1.125rem;line-height:1.75">'.nl2br(e($block), false).'</p>';
             })
             ->implode("\n");
+    }
+
+    private function separateInlineHeadings(string $body): string
+    {
+        return preg_replace_callback(
+            '/(?:^|\s)(#{2,4})[ \t]+(.+?)(?=(?:\s+#{2,4}[ \t]+)|$)/us',
+            function (array $matches): string {
+                [$heading, $content] = $this->splitInlineHeadingSection(trim($matches[2]));
+                $section = "\n\n".$matches[1].' '.$heading;
+
+                return $content === '' ? $section : $section."\n\n".$content;
+            },
+            $body,
+        ) ?? $body;
+    }
+
+    /** @return array{string, string} */
+    private function splitInlineHeadingSection(string $section): array
+    {
+        if (preg_match('/^([^\n]+)\n+(.*)$/us', $section, $matches) === 1) {
+            return [trim($matches[1]), trim($matches[2])];
+        }
+
+        $words = preg_split('/\s+/u', $section, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        if (count($words) <= 8) {
+            return [$section, ''];
+        }
+
+        $maximumHeadingWords = min(8, count($words) - 1);
+        for ($index = 3; $index <= $maximumHeadingWords; $index++) {
+            if (preg_match('/[:!?]$/u', $words[$index - 1]) === 1) {
+                return [implode(' ', array_slice($words, 0, $index)), implode(' ', array_slice($words, $index))];
+            }
+
+            $startsSentence = preg_match('/^\p{Lu}/u', $words[$index]) === 1
+                && isset($words[$index + 1])
+                && preg_match('/^\p{Ll}/u', $words[$index + 1]) === 1;
+
+            if ($startsSentence) {
+                return [implode(' ', array_slice($words, 0, $index)), implode(' ', array_slice($words, $index))];
+            }
+        }
+
+        return [implode(' ', array_slice($words, 0, $maximumHeadingWords)), implode(' ', array_slice($words, $maximumHeadingWords))];
+    }
+
+    private function normalizeParagraphBlock(string $block): string
+    {
+        if (preg_match('/(?:^|\n)\s*(?:[-*]|\d+[.)])\s+/u', $block) === 1) {
+            return $block;
+        }
+
+        $sentences = preg_split('/(?<=[.!?])\s+(?=\p{Lu})/u', Str::squish($block), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        if (count($sentences) <= 4) {
+            return implode(' ', $sentences);
+        }
+
+        return collect(array_chunk($sentences, 3))
+            ->map(fn (array $sentenceGroup): string => implode(' ', $sentenceGroup))
+            ->implode("\n\n");
     }
 }

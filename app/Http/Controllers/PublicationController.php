@@ -13,6 +13,7 @@ use App\Models\PublishingTarget;
 use App\Models\User;
 use App\PublicationStatus;
 use App\RemotePublicationStatus;
+use App\Services\ArticleBodyFormatter;
 use App\Services\PublicationCreator;
 use App\SourceTrustStatus;
 use Illuminate\Database\Eloquent\Collection;
@@ -106,11 +107,14 @@ class PublicationController extends Controller
         return redirect()->route('publications.index')->with('success', 'Yayın kaydı silindi. Haber kaydı korunmuştur.');
     }
 
-    public function show(Publication $publication): View
+    public function show(Publication $publication, ArticleBodyFormatter $bodyFormatter): View
     {
         Gate::authorize('view', $publication);
 
-        return view('publications.show', ['publication' => $publication->load(['agency', 'article', 'publishingTarget', 'creator'])]);
+        return view('publications.show', [
+            'publication' => $publication->load(['agency', 'article', 'publishingTarget', 'creator']),
+            'formattedBody' => $bodyFormatter->toHtml((string) data_get($publication->payload, 'content', $publication->article->body)),
+        ]);
     }
 
     /** @return array{agencies: Collection<int, Agency>, articles: Collection<int, Article>, targets: Collection<int, PublishingTarget>, remoteStatuses: array<int, RemotePublicationStatus>} */

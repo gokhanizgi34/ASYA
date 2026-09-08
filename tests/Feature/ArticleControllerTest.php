@@ -22,7 +22,10 @@ class ArticleControllerTest extends TestCase
     public function test_system_administrator_sees_articles_from_all_agencies_safely(): void
     {
         $administrator = User::factory()->systemAdministrator()->create();
-        $firstArticle = Article::factory()->create(['title' => '<script>alert(1)</script>']);
+        $firstArticle = Article::factory()->create([
+            'title' => '<script>alert(1)</script>',
+            'body' => "# Gövde başlığı\n\nGüvenli paragraf <script>alert(2)</script>",
+        ]);
         $secondArticle = Article::factory()->create();
 
         $this->actingAs($administrator)->get(route('articles.index'))
@@ -31,7 +34,11 @@ class ArticleControllerTest extends TestCase
             ->assertDontSee('<script>alert(1)</script>', false)
             ->assertSee($secondArticle->title);
 
-        $this->actingAs($administrator)->get(route('articles.show', $firstArticle))->assertOk();
+        $this->actingAs($administrator)->get(route('articles.show', $firstArticle))
+            ->assertOk()
+            ->assertSee('<h2 style="margin:2rem 0 0.875rem;line-height:1.35">Gövde başlığı</h2>', false)
+            ->assertSee('&lt;script&gt;alert(2)&lt;/script&gt;', false)
+            ->assertDontSee('<script>alert(2)</script>', false);
     }
 
     public function test_agency_users_see_only_their_own_articles(): void

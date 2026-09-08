@@ -7,9 +7,11 @@ use Illuminate\Support\Str;
 
 class SeoContentOptimizer
 {
+    public function __construct(private readonly ArticleBodyFormatter $bodyFormatter) {}
+
     public function optimize(Article $article, ?string $focusKeyword = null): Article
     {
-        $body = trim($article->body);
+        $body = $this->bodyFormatter->normalizeMarkdown($article->body);
         $plainBody = Str::of(strip_tags($body))->replaceMatches('/\s+/u', ' ')->squish()->toString();
         $summarySource = Str::of(trim(strip_tags((string) $article->summary)).' '.$plainBody)
             ->replaceMatches('/\s+/u', ' ')
@@ -21,6 +23,8 @@ class SeoContentOptimizer
             $body = $this->addHeading($body, $focusKeyword ?: $article->title);
         }
 
+        $body = $this->bodyFormatter->normalizeMarkdown($body);
+
         $article->forceFill([
             'summary' => $summary,
             'body' => $body,
@@ -31,7 +35,7 @@ class SeoContentOptimizer
 
     private function hasHeading(string $body): bool
     {
-        return preg_match('/(?:^|\R)#{2,3}\s+|<h[23]\b/iu', $body) === 1;
+        return preg_match('/(?:^|\R)#{2,4}\s+|<h[2-4]\b/iu', $body) === 1;
     }
 
     private function addHeading(string $body, string $focusKeyword): string

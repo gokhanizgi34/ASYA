@@ -8,6 +8,7 @@ use App\Http\Requests\UpdateArticleRequest;
 use App\Models\Agency;
 use App\Models\Article;
 use App\Models\User;
+use App\Services\ArticleBodyFormatter;
 use App\SourceTrustStatus;
 use App\UserRole;
 use Illuminate\Database\Eloquent\Collection;
@@ -78,11 +79,14 @@ class ArticleController extends Controller
         return redirect()->route('articles.show', $article)->with('success', 'Haber başarıyla oluşturuldu.');
     }
 
-    public function show(Article $article): View
+    public function show(Article $article, ArticleBodyFormatter $bodyFormatter): View
     {
         Gate::authorize('view', $article);
 
-        return view('articles.show', ['article' => $article->load(['agency', 'author', 'seoAnalysis', 'selectedVisualAsset'])]);
+        return view('articles.show', [
+            'article' => $article->load(['agency', 'author', 'seoAnalysis', 'selectedVisualAsset']),
+            'formattedBody' => $bodyFormatter->toHtml($article->body),
+        ]);
     }
 
     public function edit(Request $request, Article $article): View

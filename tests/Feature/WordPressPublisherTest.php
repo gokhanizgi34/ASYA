@@ -49,7 +49,7 @@ class WordPressPublisherTest extends TestCase
         $this->assertSame('91', $result['post_id']);
         $this->assertSame(45, $result['media_id']);
         $this->assertSame(45, $publication->fresh()->remote_media_id);
-        Http::assertSent(fn (Request $request): bool => $request->method() === 'POST' && str_ends_with($request->url(), '/posts') && str_contains((string) data_get($request->data(), 'content'), '<h2>Güvenli başlık</h2>') && str_contains((string) data_get($request->data(), 'content'), '&lt;script&gt;') && ! str_contains((string) data_get($request->data(), 'content'), '<script>'));
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'POST' && str_ends_with($request->url(), '/posts') && str_contains((string) data_get($request->data(), 'content'), '<h2 style="margin:2rem 0 0.875rem;line-height:1.35">Güvenli başlık</h2>') && str_contains((string) data_get($request->data(), 'content'), '&lt;script&gt;') && ! str_contains((string) data_get($request->data(), 'content'), '<script>'));
         Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
             && str_ends_with($request->url(), '/posts')
             && str_contains((string) data_get($request->data(), 'content'), 'https://news.example.com/?s='));

@@ -23,6 +23,7 @@ class WordPressPublisher
         private readonly RouteMethodLearner $routeMethodLearner,
         private readonly DistrictCategoryResolver $districtCategoryResolver,
         private readonly XVideoFeaturedImageBadge $xVideoFeaturedImageBadge,
+        private readonly ArticleBodyFormatter $bodyFormatter,
     ) {}
 
     /** @return array{post_id: string, media_id: int|null, url: string|null, response_meta: array<string, mixed>} */
@@ -450,20 +451,7 @@ class WordPressPublisher
         $query = Str::of((string) $searchTerm)->ascii()->lower()->replaceMatches('/[^a-z0-9]+/', ' ')->squish()->replace(' ', '+')->toString();
         $searchUrl = rtrim($publication->publishingTarget->base_url, '/').'/?s='.($query ?: 'haber');
 
-        $formatted = collect(preg_split('/\R{2,}/u', trim($content)) ?: [])
-            ->filter(fn (string $block): bool => filled(trim($block)))
-            ->map(function (string $block): string {
-                $block = trim($block);
-
-                if (preg_match('/^#{2,3}\s+(.+)$/us', $block, $matches) === 1) {
-                    $level = str_starts_with($block, '### ') ? 3 : 2;
-
-                    return '<h'.$level.'>'.e(trim($matches[1])).'</h'.$level.'>';
-                }
-
-                return '<p>'.nl2br(e($block), false).'</p>';
-            })
-            ->implode("\n");
+        $formatted = $this->bodyFormatter->toHtml($content);
 
         $xVideoEmbed = $this->xVideoEmbed($publication);
 

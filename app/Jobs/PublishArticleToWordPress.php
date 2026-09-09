@@ -67,7 +67,7 @@ class PublishArticleToWordPress implements ShouldBeUnique, ShouldQueue
                 $publication->agency_id,
                 'publication',
                 function () use ($publication, $publisher, $duplicateDetector): bool {
-                    $hasPublishedDuplicate = Publication::query()
+                    $hasPublishedDuplicate = ! (bool) data_get($publication->payload, 'skip_duplicate_check', false) && Publication::query()
                         ->with('article:id,title,created_at')
                         ->where('agency_id', $publication->agency_id)
                         ->where('status', PublicationStatus::Published)

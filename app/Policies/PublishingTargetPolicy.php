@@ -20,7 +20,7 @@ class PublishingTargetPolicy
 
     public function create(User $user): bool
     {
-        return $user->isEditor() && $user->agency_id !== null;
+        return $user->isSystemAdministrator() || ($user->isEditor() && $user->agency_id !== null);
     }
 
     public function update(User $user, PublishingTarget $publishingTarget): bool

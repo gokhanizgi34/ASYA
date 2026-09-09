@@ -30,6 +30,12 @@ class Agency extends Model
         return $this->hasMany(Article::class);
     }
 
+    /** @return HasMany<PublishingTarget, $this> */
+    public function publishingTargets(): HasMany
+    {
+        return $this->hasMany(PublishingTarget::class);
+    }
+
     /**
      * @return array<string, string>
      */

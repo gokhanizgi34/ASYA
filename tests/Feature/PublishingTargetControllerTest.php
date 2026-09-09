@@ -16,7 +16,7 @@ class PublishingTargetControllerTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_only_editor_can_create_a_wordpress_target_for_own_agency(): void
+    public function test_editor_and_system_administrator_can_create_wordpress_targets(): void
     {
         $agency = Agency::factory()->create();
         $editor = User::factory()->editor()->for($agency)->create();
@@ -25,10 +25,18 @@ class PublishingTargetControllerTest extends TestCase
 
         $this->actingAs($owner)->get(route('publishing-targets.create'))->assertForbidden();
         $this->actingAs($owner)->post(route('publishing-targets.store'), $this->payload($agency->id))->assertForbidden();
-        $this->actingAs($administrator)->post(route('publishing-targets.store'), $this->payload($agency->id))->assertForbidden();
-        $this->actingAs($editor)->post(route('publishing-targets.store'), $this->payload($agency->id))->assertRedirect(route('publishing-targets.index'));
+        $this->actingAs($administrator)->post(route('publishing-targets.store'), $this->payload($agency->id))->assertRedirect(route('publishing-targets.index'));
+        $this->actingAs($administrator)->post(route('publishing-targets.store'), $this->payload($agency->id, [
+            'name' => 'İkinci WordPress',
+            'base_url' => 'https://second.example.com',
+        ]))->assertRedirect(route('publishing-targets.index'));
 
-        $this->assertDatabaseCount('publishing_targets', 1);
+        $this->assertDatabaseCount('publishing_targets', 2);
+
+        $otherAgency = Agency::factory()->create();
+        $this->actingAs($editor)->post(route('publishing-targets.store'), $this->payload($otherAgency->id, [
+            'base_url' => 'https://editor.example.com',
+        ]))->assertSessionHasErrors('agency_id');
     }
 
     public function test_editor_creates_only_own_target_and_credential_is_encrypted_and_hidden(): void

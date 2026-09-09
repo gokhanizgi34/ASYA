@@ -68,6 +68,7 @@
                 [
                     'label' => 'Yönetim',
                     'items' => [
+                        ['label' => 'Toplu Haber Dağıtımı', 'route' => 'admin-news-distributions.index', 'pattern' => 'admin-news-distributions.*', 'allowed' => auth()->user()->isSystemAdministrator()],
                         ['label' => 'API Entegrasyonları', 'route' => 'api-integrations.index', 'pattern' => 'api-integrations.*', 'allowed' => auth()->user()->can('viewAny', App\Models\ApiIntegration::class)],
                         ['label' => 'Kara Liste', 'route' => 'blacklist-rules.index', 'pattern' => 'blacklist-rules.*', 'allowed' => auth()->user()->can('viewAny', App\Models\BlacklistRule::class)],
                         ['label' => 'Taksonomi', 'route' => 'taxonomy-mappings.index', 'pattern' => 'taxonomy-mappings.*', 'allowed' => auth()->user()->can('viewAny', App\Models\TaxonomyMapping::class)],

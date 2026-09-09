@@ -28,7 +28,7 @@ class PublishingTargetController extends Controller
         return view('publishing-targets.index', [
             'targets' => PublishingTarget::query()->visibleTo($user)->with('agency')->withCount('publications')->orderBy('name')->paginate(15),
             'canCreateTarget' => $user->can('create', PublishingTarget::class)
-                && ! PublishingTarget::query()->visibleTo($user)->exists(),
+                && ($user->isSystemAdministrator() || ! PublishingTarget::query()->visibleTo($user)->exists()),
         ]);
     }
 
@@ -38,7 +38,7 @@ class PublishingTargetController extends Controller
         $user = $request->user();
         abort_unless($user instanceof User, 401);
 
-        if (PublishingTarget::query()->visibleTo($user)->exists()) {
+        if (! $user->isSystemAdministrator() && PublishingTarget::query()->visibleTo($user)->exists()) {
             return redirect()->route('publishing-targets.index')->with('error', 'Her ajans yalnızca bir WordPress yayın hedefi ekleyebilir. Mevcut hedefi düzenleyin.');
         }
 
@@ -48,14 +48,27 @@ class PublishingTargetController extends Controller
     public function store(StorePublishingTargetRequest $request): RedirectResponse
     {
         $data = $request->validated();
+        $user = $request->user();
+        abort_unless($user instanceof User, 401);
 
-        DB::transaction(function () use ($data): void {
+        DB::transaction(function () use ($data, $user): void {
             Agency::query()->lockForUpdate()->findOrFail($data['agency_id']);
-            $existingTarget = PublishingTarget::withTrashed()->where('agency_id', $data['agency_id'])->first();
+            $existingTarget = $user->isSystemAdministrator()
+                ? PublishingTarget::withTrashed()->where('base_url', $data['base_url'])->first()
+                : PublishingTarget::withTrashed()->where('agency_id', $data['agency_id'])->first();
 
             if ($existingTarget && ! $existingTarget->trashed()) {
+                $field = $user->isSystemAdministrator() ? 'base_url' : 'agency_id';
                 throw ValidationException::withMessages([
-                    'agency_id' => 'Her ajans yalnızca bir WordPress yayın hedefi ekleyebilir. Mevcut hedefi düzenleyin.',
+                    $field => $user->isSystemAdministrator()
+                        ? 'Bu site zaten bir WordPress yayın hedefi olarak kayıtlıdır.'
+                        : 'Her ajans yalnızca bir WordPress yayın hedefi ekleyebilir. Mevcut hedefi düzenleyin.',
+                ]);
+            }
+
+            if ($user->isSystemAdministrator() && $existingTarget?->trashed() && $existingTarget->agency_id !== $data['agency_id']) {
+                throw ValidationException::withMessages([
+                    'base_url' => 'Bu site daha önce başka bir ajansa bağlanmış. Eski hedefi geri yükleyip aynı ajans altında kullanın.',
                 ]);
             }
 

@@ -19,13 +19,18 @@ class StorePublishingTargetRequest extends FormRequest
     /** @return array<string, array<int, mixed>> */
     public function rules(): array
     {
+        $agencyRules = [
+            'required',
+            'integer',
+            Rule::exists('agencies', 'id')->where('is_active', true),
+        ];
+
+        if (! $this->user()?->isSystemAdministrator()) {
+            $agencyRules[] = Rule::unique('publishing_targets', 'agency_id')->withoutTrashed()->ignore($this->targetForUniqueRule());
+        }
+
         return [
-            'agency_id' => [
-                'required',
-                'integer',
-                Rule::exists('agencies', 'id')->where('is_active', true),
-                Rule::unique('publishing_targets', 'agency_id')->withoutTrashed()->ignore($this->targetForUniqueRule()),
-            ],
+            'agency_id' => $agencyRules,
             'name' => ['required', 'string', 'max:150', Rule::unique('publishing_targets', 'name')->where(fn ($query) => $query->where('agency_id', $this->input('agency_id')))->withoutTrashed()->ignore($this->targetForUniqueRule())],
             'base_url' => ['required', 'url:http,https', 'max:500', Rule::unique('publishing_targets', 'base_url')->withoutTrashed()->ignore($this->targetForUniqueRule())],
             'protocol' => ['required', Rule::enum(PublishingProtocol::class)],

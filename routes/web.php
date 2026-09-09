@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AgencyController;
+use App\Http\Controllers\AdminNewsDistributionController;
 use App\Http\Controllers\AgencyMailSettingController;
 use App\Http\Controllers\AgencyMailTestController;
 use App\Http\Controllers\AgencyStatusController;
@@ -168,6 +169,9 @@ Route::middleware(['auth', EnsureUserIsActive::class, ApplySystemSettings::class
         ->parameters(['yayin-hedefleri' => 'publishingTarget'])
         ->except('show')
         ->names('publishing-targets');
+    Route::get('/yonetim/toplu-haber', [AdminNewsDistributionController::class, 'index'])->name('admin-news-distributions.index');
+    Route::post('/yonetim/toplu-haber', [AdminNewsDistributionController::class, 'store'])->name('admin-news-distributions.store');
+    Route::get('/yonetim/toplu-haber/excel', [AdminNewsDistributionController::class, 'export'])->name('admin-news-distributions.export');
 
     Route::resource('kara-liste', BlacklistRuleController::class)
         ->parameters(['kara-liste' => 'blacklistRule'])

@@ -523,6 +523,10 @@ class WordPressPublisher
 
     private function formatContent(string $content, Publication $publication): string
     {
+        if ((bool) data_get($publication->payload, 'preserve_content', false)) {
+            return $this->bodyFormatter->toHtml($content);
+        }
+
         $content = preg_replace('~(?:https?://|www\\.)\\S+~iu', '', $content) ?? $content;
         $publication->loadMissing('article.agency', 'publishingTarget');
         $searchTerm = $this->districtCategoryResolver->resolve($publication->article)

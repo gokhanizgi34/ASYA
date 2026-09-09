@@ -84,6 +84,32 @@ class PublishingTargetControllerTest extends TestCase
         $this->assertDatabaseCount('publishing_targets', 1);
     }
 
+    public function test_agency_cannot_register_a_second_wordpress_target(): void
+    {
+        $agency = Agency::factory()->create();
+        $editor = User::factory()->editor()->for($agency)->create();
+        PublishingTarget::factory()->for($agency)->create();
+
+        $this->actingAs($editor)
+            ->get(route('publishing-targets.index'))
+            ->assertOk()
+            ->assertDontSee('+ Hedef ekle');
+
+        $this->actingAs($editor)
+            ->get(route('publishing-targets.create'))
+            ->assertRedirect(route('publishing-targets.index'))
+            ->assertSessionHas('error');
+
+        $this->actingAs($editor)
+            ->post(route('publishing-targets.store'), $this->payload($agency->id, [
+                'name' => 'İkinci WordPress',
+                'base_url' => 'https://second-news.example.com',
+            ]))
+            ->assertSessionHasErrors('agency_id');
+
+        $this->assertDatabaseCount('publishing_targets', 1);
+    }
+
     public function test_target_with_queued_publication_is_deleted_after_queue_is_closed(): void
     {
         $agency = Agency::factory()->create();

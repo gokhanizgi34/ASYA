@@ -14,6 +14,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class PublishingTargetController extends Controller
@@ -26,14 +27,20 @@ class PublishingTargetController extends Controller
 
         return view('publishing-targets.index', [
             'targets' => PublishingTarget::query()->visibleTo($user)->with('agency')->withCount('publications')->orderBy('name')->paginate(15),
+            'canCreateTarget' => $user->can('create', PublishingTarget::class)
+                && ! PublishingTarget::query()->visibleTo($user)->exists(),
         ]);
     }
 
-    public function create(Request $request): View
+    public function create(Request $request): View|RedirectResponse
     {
         Gate::authorize('create', PublishingTarget::class);
         $user = $request->user();
         abort_unless($user instanceof User, 401);
+
+        if (PublishingTarget::query()->visibleTo($user)->exists()) {
+            return redirect()->route('publishing-targets.index')->with('error', 'Her ajans yalnızca bir WordPress yayın hedefi ekleyebilir. Mevcut hedefi düzenleyin.');
+        }
 
         return view('publishing-targets.create', $this->formOptions($user));
     }
@@ -41,17 +48,26 @@ class PublishingTargetController extends Controller
     public function store(StorePublishingTargetRequest $request): RedirectResponse
     {
         $data = $request->validated();
-        $deletedTarget = PublishingTarget::withTrashed()
-            ->where('agency_id', $data['agency_id'])
-            ->where('base_url', $data['base_url'])
-            ->first();
 
-        if ($deletedTarget?->trashed()) {
-            $deletedTarget->restore();
-            $deletedTarget->update($data);
-        } else {
+        DB::transaction(function () use ($data): void {
+            Agency::query()->lockForUpdate()->findOrFail($data['agency_id']);
+            $existingTarget = PublishingTarget::withTrashed()->where('agency_id', $data['agency_id'])->first();
+
+            if ($existingTarget && ! $existingTarget->trashed()) {
+                throw ValidationException::withMessages([
+                    'agency_id' => 'Her ajans yalnızca bir WordPress yayın hedefi ekleyebilir. Mevcut hedefi düzenleyin.',
+                ]);
+            }
+
+            if ($existingTarget?->trashed()) {
+                $existingTarget->restore();
+                $existingTarget->update($data);
+
+                return;
+            }
+
             PublishingTarget::query()->create($data);
-        }
+        }, 3);
 
         return redirect()->route('publishing-targets.index')->with('success', 'WordPress yayın hedefi oluşturuldu.');
     }

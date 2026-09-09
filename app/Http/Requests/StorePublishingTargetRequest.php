@@ -20,7 +20,12 @@ class StorePublishingTargetRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'agency_id' => ['required', 'integer', Rule::exists('agencies', 'id')->where('is_active', true)],
+            'agency_id' => [
+                'required',
+                'integer',
+                Rule::exists('agencies', 'id')->where('is_active', true),
+                Rule::unique('publishing_targets', 'agency_id')->withoutTrashed()->ignore($this->targetForUniqueRule()),
+            ],
             'name' => ['required', 'string', 'max:150', Rule::unique('publishing_targets', 'name')->where(fn ($query) => $query->where('agency_id', $this->input('agency_id')))->withoutTrashed()->ignore($this->targetForUniqueRule())],
             'base_url' => ['required', 'url:http,https', 'max:500', Rule::unique('publishing_targets', 'base_url')->withoutTrashed()->ignore($this->targetForUniqueRule())],
             'protocol' => ['required', Rule::enum(PublishingProtocol::class)],
@@ -32,6 +37,14 @@ class StorePublishingTargetRequest extends FormRequest
             'default_tag_ids' => ['nullable', 'array', 'max:100'],
             'default_tag_ids.*' => ['integer', 'min:1', 'distinct'],
             'is_active' => ['required', 'boolean'],
+        ];
+    }
+
+    /** @return array<string, string> */
+    public function messages(): array
+    {
+        return [
+            'agency_id.unique' => 'Her ajans yalnızca bir WordPress yayın hedefi ekleyebilir. Mevcut hedefi düzenleyin.',
         ];
     }
 

@@ -369,7 +369,7 @@ class WordPressPublisher
             $endpoint,
             HttpMethod::Post,
             'WordPress XML-RPC '.$method,
-            fn (): Response => Http::connectTimeout(5)->timeout(30)
+            fn (): Response => Http::connectTimeout($this->connectTimeoutSeconds())->timeout($this->requestTimeoutSeconds())
                 ->withBody($this->buildXmlRpcRequest($method, $parameters), 'text/xml')
                 ->post($endpoint),
         )->throw();
@@ -518,7 +518,20 @@ class WordPressPublisher
 
     private function request(string $username, string $credential): PendingRequest
     {
-        return Http::connectTimeout(5)->timeout(30)->acceptJson()->withBasicAuth($username, $credential);
+        return Http::connectTimeout($this->connectTimeoutSeconds())
+            ->timeout($this->requestTimeoutSeconds())
+            ->acceptJson()
+            ->withBasicAuth($username, $credential);
+    }
+
+    private function connectTimeoutSeconds(): int
+    {
+        return max(1, (int) config('services.wordpress.connect_timeout_seconds', 30));
+    }
+
+    private function requestTimeoutSeconds(): int
+    {
+        return max($this->connectTimeoutSeconds(), (int) config('services.wordpress.request_timeout_seconds', 60));
     }
 
     private function formatContent(string $content, Publication $publication): string

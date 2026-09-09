@@ -49,6 +49,11 @@ return [
         'redirect_uri' => env('X_REDIRECT_URI'),
     ],
 
+    'wordpress' => [
+        'connect_timeout_seconds' => (int) env('WORDPRESS_CONNECT_TIMEOUT_SECONDS', 30),
+        'request_timeout_seconds' => (int) env('WORDPRESS_REQUEST_TIMEOUT_SECONDS', 60),
+    ],
+
     'external_trends' => [
         'google_geo' => env('GOOGLE_TRENDS_GEO', 'TR'),
         'google_rss_url' => env('GOOGLE_TRENDS_RSS_URL', 'https://trends.google.com/trending/rss?geo=TR'),

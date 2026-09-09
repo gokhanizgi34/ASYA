@@ -368,6 +368,8 @@ class WordPressPublisherTest extends TestCase
 
         $this->assertInstanceOf(ShouldBeUnique::class, $job);
         $this->assertSame((string) $publication->id, $job->uniqueId());
+        $this->assertSame(3, $job->tries);
+        $this->assertSame([30, 60], $job->backoff);
         $this->assertSame(600, $job->uniqueFor);
     }
 

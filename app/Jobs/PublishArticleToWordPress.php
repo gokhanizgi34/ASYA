@@ -25,7 +25,7 @@ class PublishArticleToWordPress implements ShouldBeUnique, ShouldQueue
     public int $tries = 3;
 
     /** @var array<int, int> */
-    public array $backoff = [300, 300];
+    public array $backoff = [30, 60];
 
     public int $timeout = 240;
 

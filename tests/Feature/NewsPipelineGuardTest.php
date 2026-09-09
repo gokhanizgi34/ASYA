@@ -35,6 +35,18 @@ class NewsPipelineGuardTest extends TestCase
         $this->assertTrue(app(NewsDuplicateDetector::class)->exists($agency->id, 'Pendik 6. Kahve Festivali başladı'));
     }
 
+    public function test_short_editorial_titles_for_the_same_recent_accident_are_detected(): void
+    {
+        $sameEvent = app(NewsDuplicateDetector::class)->reportsSameEvent(
+            'Diyarbakır’da Otomobil Yayalara Çarptı',
+            'Diyarbakır’da Otomobil Kaldırımdaki Anne ve Çocuklarına Çarptı',
+            '2026-09-09 08:04:55',
+            '2026-09-09 08:04:54',
+        );
+
+        $this->assertTrue($sameEvent);
+    }
+
     public function test_same_recent_accident_from_different_sources_is_detected_despite_different_wording(): void
     {
         $this->travelTo('2026-09-09 08:05:00');

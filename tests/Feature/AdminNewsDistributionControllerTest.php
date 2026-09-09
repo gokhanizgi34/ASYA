@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Jobs\PublishArticleToWordPress;
 use App\Models\Agency;
+use App\Models\Article;
 use App\Models\Publication;
 use App\Models\PublishingTarget;
 use App\Models\User;
@@ -52,7 +53,7 @@ class AdminNewsDistributionControllerTest extends TestCase
         $this->assertDatabaseCount('admin_news_distribution_items', 3);
         $this->assertDatabaseCount('articles', 2);
         $this->assertDatabaseCount('publications', 2);
-        $this->assertSame([$body], \App\Models\Article::query()->pluck('body')->unique()->values()->all());
+        $this->assertSame([$body], Article::query()->pluck('body')->unique()->values()->all());
         $this->assertDatabaseHas('admin_news_distribution_items', [
             'agency_id' => $ankaraAgency->id,
             'failure_message' => 'Ajansın aktif WordPress hedefi bulunmuyor.',

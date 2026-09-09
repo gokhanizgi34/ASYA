@@ -1,7 +1,7 @@
 <?php
 
-use App\Http\Controllers\AgencyController;
 use App\Http\Controllers\AdminNewsDistributionController;
+use App\Http\Controllers\AgencyController;
 use App\Http\Controllers\AgencyMailSettingController;
 use App\Http\Controllers\AgencyMailTestController;
 use App\Http\Controllers\AgencyStatusController;

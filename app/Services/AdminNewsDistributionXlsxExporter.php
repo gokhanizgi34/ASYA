@@ -17,7 +17,7 @@ class AdminNewsDistributionXlsxExporter
             throw new RuntimeException('Excel raporu için geçici dosya oluşturulamadı.');
         }
 
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
         if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
             throw new RuntimeException('Excel raporu oluşturulamadı.');
         }
@@ -38,7 +38,7 @@ class AdminNewsDistributionXlsxExporter
     }
 
     /** @param Collection<int, AdminNewsDistributionItem> $items
-     *  @return array{string, string}
+     * @return array{string, string}
      */
     private function worksheet(Collection $items): array
     {

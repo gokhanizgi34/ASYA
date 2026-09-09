@@ -9,7 +9,6 @@ use App\Models\AdminNewsDistribution;
 use App\Models\AdminNewsDistributionItem;
 use App\Models\Agency;
 use App\Models\Article;
-use App\Models\Publication;
 use App\Models\SeoAnalysis;
 use App\Models\User;
 use App\Models\VisualAsset;
@@ -120,7 +119,7 @@ class AdminNewsDistributionService
     }
 
     /** @param array<string, mixed> $data
-     *  @return Collection<int, Agency>
+     * @return Collection<int, Agency>
      */
     private function selectedAgencies(array $data): Collection
     {

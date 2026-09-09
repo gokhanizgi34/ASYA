@@ -27,7 +27,7 @@ class PublishArticleToWordPress implements ShouldBeUnique, ShouldQueue
     /** @var array<int, int> */
     public array $backoff = [300, 300];
 
-    public int $timeout = 120;
+    public int $timeout = 240;
 
     public int $uniqueFor = 600;
 
@@ -63,40 +63,57 @@ class PublishArticleToWordPress implements ShouldBeUnique, ShouldQueue
 
         try {
             $duplicateDetector ??= app(NewsDuplicateDetector::class);
-            $hasPublishedDuplicate = Publication::query()
-                ->with('article:id,title')
-                ->where('agency_id', $publication->agency_id)
-                ->where('status', PublicationStatus::Published)
-                ->where('article_id', '!=', $publication->article_id)
-                ->whereKeyNot($publication->id)
-                ->latest('published_at')
-                ->limit(1000)
-                ->get()
-                ->contains(fn (Publication $candidate): bool => filled($candidate->article?->title)
-                    && $duplicateDetector->titlesAreSimilar($publication->article->title, $candidate->article->title));
+            $published = $duplicateDetector->withinAgencyLock(
+                $publication->agency_id,
+                'publication',
+                function () use ($publication, $publisher, $duplicateDetector): bool {
+                    $hasPublishedDuplicate = Publication::query()
+                        ->with('article:id,title,created_at')
+                        ->where('agency_id', $publication->agency_id)
+                        ->where('status', PublicationStatus::Published)
+                        ->where('article_id', '!=', $publication->article_id)
+                        ->whereKeyNot($publication->id)
+                        ->latest('published_at')
+                        ->limit(1000)
+                        ->get()
+                        ->contains(fn (Publication $candidate): bool => filled($candidate->article?->title)
+                            && $duplicateDetector->reportsSameEvent(
+                                $publication->article->title,
+                                $candidate->article->title,
+                                $publication->article->created_at,
+                                $candidate->published_at ?? $candidate->article->created_at,
+                            ));
 
-            if ($hasPublishedDuplicate) {
-                $publication->forceFill([
-                    'status' => PublicationStatus::Failed,
-                    'failure_message' => '[KALICI] Aynı veya çok benzer haber daha önce yayımlandı.',
-                    'completed_at' => now(),
-                ])->save();
+                    if ($hasPublishedDuplicate) {
+                        $publication->forceFill([
+                            'status' => PublicationStatus::Failed,
+                            'failure_message' => '[KALICI] Aynı olay farklı bir kaynak veya anlatımla daha önce yayımlandı.',
+                            'completed_at' => now(),
+                        ])->save();
 
+                        return false;
+                    }
+
+                    $result = $publisher->publish($publication);
+                    $publication->forceFill([
+                        'status' => PublicationStatus::Published,
+                        'remote_post_id' => $result['post_id'],
+                        'remote_media_id' => $result['media_id'],
+                        'remote_url' => $result['url'],
+                        'response_meta' => $result['response_meta'],
+                        'published_at' => now(),
+                        'completed_at' => now(),
+                        'failure_message' => null,
+                    ])->save();
+                    $publication->publishingTarget->forceFill(['last_connected_at' => now(), 'last_error' => null])->save();
+
+                    return true;
+                },
+            );
+
+            if (! $published) {
                 return;
             }
-
-            $result = $publisher->publish($publication);
-            $publication->forceFill([
-                'status' => PublicationStatus::Published,
-                'remote_post_id' => $result['post_id'],
-                'remote_media_id' => $result['media_id'],
-                'remote_url' => $result['url'],
-                'response_meta' => $result['response_meta'],
-                'published_at' => now(),
-                'completed_at' => now(),
-                'failure_message' => null,
-            ])->save();
-            $publication->publishingTarget->forceFill(['last_connected_at' => now(), 'last_error' => null])->save();
 
             $searchConsoleIntegration = ApiIntegration::query()
                 ->where('agency_id', $publication->agency_id)

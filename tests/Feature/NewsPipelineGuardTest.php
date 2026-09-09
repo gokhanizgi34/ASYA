@@ -35,6 +35,75 @@ class NewsPipelineGuardTest extends TestCase
         $this->assertTrue(app(NewsDuplicateDetector::class)->exists($agency->id, 'Pendik 6. Kahve Festivali başladı'));
     }
 
+    public function test_same_recent_accident_from_different_sources_is_detected_despite_different_wording(): void
+    {
+        $this->travelTo('2026-09-09 08:05:00');
+        $agency = Agency::factory()->create();
+        RawNewsItem::factory()->for($agency)->create([
+            'original_title' => 'Diyarbakır\'ın Bağlar ilçesinde kaldırımda yürürken otomobilin çarptığı Hamdiye Öztürk ile çocukları yaralandı',
+            'discovered_at' => '2026-09-09 04:13:16',
+        ]);
+
+        $duplicateExists = app(NewsDuplicateDetector::class)->exists(
+            $agency->id,
+            'Diyarbakır’da kavşağa kontrolsüz giren otomobil kaldırıma çıkarak kaldırımda yürüyen yayalara çarptı',
+            occurredAt: '2026-09-09 04:54:38',
+        );
+
+        $this->assertTrue($duplicateExists);
+    }
+
+    public function test_similar_accidents_more_than_six_hours_apart_remain_separate_news(): void
+    {
+        $this->travelTo('2026-09-09 12:00:00');
+        $agency = Agency::factory()->create();
+        RawNewsItem::factory()->for($agency)->create([
+            'original_title' => 'Diyarbakır\'ın Bağlar ilçesinde kaldırımda yürürken otomobilin çarptığı Hamdiye Öztürk ile çocukları yaralandı',
+            'discovered_at' => '2026-09-09 04:13:16',
+        ]);
+
+        $duplicateExists = app(NewsDuplicateDetector::class)->exists(
+            $agency->id,
+            'Diyarbakır’da kavşağa kontrolsüz giren otomobil kaldırıma çıkarak kaldırımda yürüyen yayalara çarptı',
+            occurredAt: '2026-09-09 11:54:38',
+        );
+
+        $this->assertFalse($duplicateExists);
+    }
+
+    public function test_second_feed_skips_the_same_recent_event_from_another_source(): void
+    {
+        $this->travelTo('2026-09-09 08:05:00');
+        $firstTitle = 'Diyarbakır\'ın Bağlar ilçesinde kaldırımda yürürken otomobilin çarptığı anne ile çocukları yaralandı';
+        $secondTitle = 'Diyarbakır’da kavşağa kontrolsüz giren otomobil kaldırıma çıkarak yürüyen yayalara çarptı';
+        $body = implode(' ', array_fill(0, 8, 'Otomobil kaldırıma çıkarak yayalara çarptı ve yaralılar hastaneye kaldırıldı.'));
+        Http::fake([
+            'https://93.184.216.34/first.xml' => Http::response('<rss><channel><item><title>'.htmlspecialchars($firstTitle).'</title><description>'.htmlspecialchars($body).'</description><link>https://93.184.216.34/haber/512</link><pubDate>'.now()->subHours(4)->toRfc2822String().'</pubDate></item></channel></rss>', 200, ['Content-Type' => 'application/rss+xml']),
+            'https://93.184.216.34/second.xml' => Http::response('<rss><channel><item><title>'.htmlspecialchars($secondTitle).'</title><description>'.htmlspecialchars($body).'</description><link>https://93.184.216.34/haber/514</link><pubDate>'.now()->subHours(3)->subMinutes(10)->toRfc2822String().'</pubDate></item></channel></rss>', 200, ['Content-Type' => 'application/rss+xml']),
+        ]);
+        $agency = Agency::factory()->create();
+        $firstSource = NewsSource::factory()->for($agency)->create([
+            'name' => 'X Haber',
+            'domain' => 'xhaber.example',
+            'feed_url' => 'https://93.184.216.34/first.xml',
+            'feed_format' => 'rss',
+        ]);
+        $secondSource = NewsSource::factory()->for($agency)->create([
+            'name' => 'X Asayiş',
+            'domain' => 'xasayis.example',
+            'feed_url' => 'https://93.184.216.34/second.xml',
+            'feed_format' => 'rss',
+        ]);
+
+        $firstResult = app(NewsFeedImporter::class)->import($firstSource);
+        $secondResult = app(NewsFeedImporter::class)->import($secondSource);
+
+        $this->assertSame(1, $firstResult['imported']);
+        $this->assertSame(0, $secondResult['imported']);
+        $this->assertSame(1, $secondResult['skipped']);
+        $this->assertDatabaseCount('raw_news_items', 1);
+    }
+
     public function test_import_removes_source_branding_before_duplicate_check(): void
     {
         Http::fake([
@@ -208,6 +277,35 @@ class NewsPipelineGuardTest extends TestCase
 
         $this->assertSame(PublicationStatus::Failed, $candidate->fresh()->status);
         $this->assertStringStartsWith('[KALICI]', (string) $candidate->fresh()->failure_message);
+    }
+
+    public function test_same_recent_accident_is_blocked_at_wordpress_boundary(): void
+    {
+        $this->travelTo('2026-09-09 08:05:00');
+        $agency = Agency::factory()->create();
+        $user = User::factory()->agencyOwner()->for($agency)->create();
+        $target = PublishingTarget::factory()->for($agency)->create(['is_active' => true]);
+        $publishedArticle = Article::factory()->for($agency)->for($user, 'author')->create([
+            'title' => 'Diyarbakır’da Otomobil Kaldırımdaki Anne ve Çocuklarına Çarptı',
+            'created_at' => '2026-09-09 08:04:54',
+        ]);
+        Publication::factory()->for($agency)->for($publishedArticle)->for($target, 'publishingTarget')->create([
+            'status' => PublicationStatus::Published,
+            'published_at' => '2026-09-09 08:04:54',
+        ]);
+        $candidateArticle = Article::factory()->for($agency)->for($user, 'author')->create([
+            'title' => 'Diyarbakır’da Otomobil Yayalara Çarptı',
+            'created_at' => '2026-09-09 08:04:55',
+        ]);
+        $candidate = Publication::factory()->for($agency)->for($candidateArticle)->for($target, 'publishingTarget')->create(['status' => PublicationStatus::Queued]);
+        $publisher = $this->mock(WordPressPublisher::class, function (MockInterface $mock): void {
+            $mock->shouldNotReceive('publish');
+        });
+
+        (new PublishArticleToWordPress($candidate->id))->handle($publisher, null, app(NewsDuplicateDetector::class));
+
+        $this->assertSame(PublicationStatus::Failed, $candidate->fresh()->status);
+        $this->assertSame('[KALICI] Aynı olay farklı bir kaynak veya anlatımla daha önce yayımlandı.', $candidate->fresh()->failure_message);
     }
 
     public function test_all_failed_publications_can_be_requeued_together(): void

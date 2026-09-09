@@ -89,11 +89,6 @@ class ExternalTrendCollector
 
             $checksum = hash('sha256', Str::lower($item['source'].'|'.$item['title']));
 
-            if (RawNewsItem::withTrashed()->where('agency_id', $agencyId)->where('checksum', $checksum)->exists()
-                || $this->duplicateDetector->exists($agencyId, $item['title'])) {
-                continue;
-            }
-
             $attributes = [
                 'agency_id' => $agencyId,
                 'external_id' => $item['external_id'],
@@ -115,7 +110,23 @@ class ExternalTrendCollector
                 continue;
             }
 
-            $rawNews = RawNewsItem::query()->create($attributes);
+            $rawNews = $this->duplicateDetector->withinAgencyLock(
+                $agencyId,
+                'ingestion',
+                function () use ($agencyId, $checksum, $item, $attributes): ?RawNewsItem {
+                    if (RawNewsItem::withTrashed()->where('agency_id', $agencyId)->where('checksum', $checksum)->exists()
+                        || $this->duplicateDetector->exists($agencyId, $item['title'], occurredAt: now())) {
+                        return null;
+                    }
+
+                    return RawNewsItem::query()->create($attributes);
+                },
+            );
+
+            if (! $rawNews) {
+                continue;
+            }
+
             $rawNewsItemIds[] = $rawNews->id;
             $imported++;
 

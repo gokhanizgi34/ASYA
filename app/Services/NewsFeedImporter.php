@@ -73,12 +73,6 @@ class NewsFeedImporter
                 })
                 ->first();
 
-            if (! $existingItem && $this->duplicateDetector->exists($source->agency_id, $normalizedTitle)) {
-                $skipped++;
-
-                continue;
-            }
-
             $blacklist = $this->blacklistMatcher->evaluate($source->agency_id, [
                 'title' => $item['title'],
                 'body' => $item['body'],
@@ -129,23 +123,51 @@ class NewsFeedImporter
                 continue;
             }
 
-            $createdItem = RawNewsItem::query()->create([
-                'agency_id' => $source->agency_id,
-                'news_source_id' => $source->id,
-                'external_id' => $item['external_id'],
-                'source_name' => $source->name,
-                'source_url' => $item['url'],
-                'original_title' => $normalizedTitle,
-                'original_body' => $item['body'],
-                'original_image_url' => $item['image_url'],
-                'language' => 'tr',
-                'status' => $blacklist['blocked'] ? RawNewsStatus::Rejected : ($blacklist['requires_review'] ? RawNewsStatus::Review : RawNewsStatus::Pending),
-                'priority' => 50,
-                'checksum' => $checksum,
-                'discovered_at' => $item['published_at'],
-                'expires_at' => now()->addDays(2),
-                'failure_message' => $blacklist['matches']->isEmpty() ? null : 'Kara liste eşleşmesi: '.$blacklist['matches']->pluck('pattern')->take(5)->implode(', '),
-            ]);
+            $createdItem = $this->duplicateDetector->withinAgencyLock(
+                $source->agency_id,
+                'ingestion',
+                function () use ($source, $item, $normalizedTitle, $checksum, $blacklist): ?RawNewsItem {
+                    $appearedDuringImport = RawNewsItem::withTrashed()
+                        ->where('agency_id', $source->agency_id)
+                        ->where(function ($query) use ($checksum, $item): void {
+                            $query->where('checksum', $checksum)
+                                ->orWhere('source_url', $item['url']);
+                        })
+                        ->exists();
+
+                    if ($appearedDuringImport || $this->duplicateDetector->exists(
+                        $source->agency_id,
+                        $normalizedTitle,
+                        occurredAt: $item['published_at'],
+                    )) {
+                        return null;
+                    }
+
+                    return RawNewsItem::query()->create([
+                        'agency_id' => $source->agency_id,
+                        'news_source_id' => $source->id,
+                        'external_id' => $item['external_id'],
+                        'source_name' => $source->name,
+                        'source_url' => $item['url'],
+                        'original_title' => $normalizedTitle,
+                        'original_body' => $item['body'],
+                        'original_image_url' => $item['image_url'],
+                        'language' => 'tr',
+                        'status' => $blacklist['blocked'] ? RawNewsStatus::Rejected : ($blacklist['requires_review'] ? RawNewsStatus::Review : RawNewsStatus::Pending),
+                        'priority' => 50,
+                        'checksum' => $checksum,
+                        'discovered_at' => $item['published_at'],
+                        'expires_at' => now()->addDays(2),
+                        'failure_message' => $blacklist['matches']->isEmpty() ? null : 'Kara liste eşleşmesi: '.$blacklist['matches']->pluck('pattern')->take(5)->implode(', '),
+                    ]);
+                },
+            );
+
+            if (! $createdItem) {
+                $skipped++;
+
+                continue;
+            }
             $this->applyQualityStatus($createdItem);
 
             if ($createdItem->status === RawNewsStatus::Pending) {

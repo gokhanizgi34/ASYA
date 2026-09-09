@@ -33,18 +33,18 @@ class XVideoFeaturedImageBadge
             imagesavealpha($image, true);
 
             $fontPath = $this->fontPath();
-            $fontSize = max(18, min(58, (int) round($width / 28)));
+            $fontSize = max(16, min(42, (int) round($width / 36)));
             $label = $fontPath ? 'VİDEO HABER' : 'VIDEO HABER';
-            $padding = max(12, (int) round($fontSize * 0.55));
-            $iconWidth = max(18, (int) round($fontSize * 0.72));
+            $padding = max(10, (int) round($fontSize * 0.42));
+            $iconWidth = max(16, (int) round($fontSize * 0.58));
             $textWidth = $fontPath
                 ? $this->textWidth($label, $fontPath, $fontSize)
                 : imagefontwidth(5) * strlen($label);
             $badgeWidth = $padding + $iconWidth + $padding + $textWidth + $padding;
-            $badgeHeight = max(48, (int) round($fontSize * 1.75));
-            $margin = max(14, (int) round($width * 0.02));
-            $left = max(0, $width - $badgeWidth - $margin);
-            $safeTop = max($margin, (int) round($height * 0.12));
+            $badgeHeight = max(40, (int) round($fontSize * 1.5));
+            $margin = max(12, (int) round($width * 0.018));
+            $left = max($margin, (int) round(($width - $badgeWidth) / 2));
+            $safeTop = max($margin, (int) round($height * 0.06));
             $top = min($height - $badgeHeight - $margin, $safeTop);
             $right = min($width - 1, $left + $badgeWidth);
             $bottom = min($height - 1, $top + $badgeHeight);

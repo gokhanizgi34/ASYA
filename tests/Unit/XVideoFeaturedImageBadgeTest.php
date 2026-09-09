@@ -24,7 +24,7 @@ class XVideoFeaturedImageBadgeTest extends TestCase
         $this->assertSame(40, $topColor['green']);
         $this->assertSame(80, $topColor['blue']);
 
-        $color = imagecolorsforindex($image, imagecolorat($image, 780, 60));
+        $color = imagecolorsforindex($image, imagecolorat($image, 400, 40));
         $this->assertGreaterThan(150, $color['red']);
         $this->assertLessThan(100, $color['green']);
         $this->assertLessThan(100, $color['blue']);

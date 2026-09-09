@@ -57,8 +57,10 @@ class AutomaticArticlePublisher
             throw new RuntimeException('Haberi göndermek için aktif bir WordPress yayın hedefi bulunamadı.');
         }
 
-        $article = $this->seoContentOptimizer->optimize($article, $article->title);
-        $seo = $this->seoAnalyzer->analyze($article);
+        $focusKeyword = data_get($article->editorial_metadata, 'focus_keyword')
+            ?: $this->seoAnalyzer->analyze($article)['focus_keyword'];
+        $article = $this->seoContentOptimizer->optimize($article, $focusKeyword);
+        $seo = $this->seoAnalyzer->analyze($article, $focusKeyword);
         $seo['keywords'] = collect([...(array) data_get($article->editorial_metadata, 'keywords', []), ...$seo['keywords']])
             ->filter(fn (mixed $keyword): bool => is_string($keyword) && filled($keyword))
             ->map(fn (string $keyword): string => Str::of(strip_tags($keyword))->squish()->limit(120, '')->toString())

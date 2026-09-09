@@ -44,7 +44,7 @@ class PublicationSeoRefresherTest extends TestCase
         $publication->refresh();
         $article->refresh();
         $this->assertSame(PublicationStatus::Queued, $publication->status);
-        $this->assertStringContainsString('## Pendik Sahilinde Yenileme', $article->body);
+        $this->assertStringContainsString('## Pendik Hakkında Ayrıntılar', $article->body);
         $this->assertGreaterThanOrEqual(120, mb_strlen((string) data_get($publication->payload, 'excerpt')));
         $this->assertSame($article->seoAnalysis->meta_title, data_get($publication->payload, 'meta.rank_math_title'));
         $this->assertSame($article->seoAnalysis->focus_keyword, data_get($publication->payload, 'meta.rank_math_focus_keyword'));

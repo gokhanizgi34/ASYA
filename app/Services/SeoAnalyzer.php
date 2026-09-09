@@ -24,8 +24,17 @@ class SeoAnalyzer
         $wordCount = count($words);
         $keywords = $this->extractKeywords($article->title.' '.$plainBody);
         $focusKeyword = $this->focusKeyword($article->title, $plainBody, $requestedFocusKeyword, $keywords);
-        $metaTitle = $this->metaTitle($article->title);
-        $metaDescription = Str::limit(Str::of($plainSummary.' '.$plainBody)->squish()->toString(), 155, '');
+        $metaTitle = $this->metaTitle($article->title, $focusKeyword);
+        $descriptionSource = Str::of($plainSummary.' '.$plainBody)->squish()->toString();
+        if ($focusKeyword !== '' && ! Str::contains(Str::lower(Str::limit($descriptionSource, 155, '')), Str::lower($focusKeyword))) {
+            $descriptionSource = Str::ucfirst($focusKeyword).': '.$descriptionSource;
+        }
+        if (mb_strlen($descriptionSource) < 120) {
+            $descriptionSource = Str::of($descriptionSource.' Gelişmeye ilişkin doğrulanabilen ayrıntılar ve açıklamalar haber metninde aktarılıyor.')
+                ->squish()
+                ->toString();
+        }
+        $metaDescription = Str::limit($descriptionSource, 155, '');
         $keywordDensity = $this->keywordDensity($plainBody, $focusKeyword, $wordCount);
         $readabilityScore = $this->readabilityScore($plainBody, $wordCount);
         [$score, $issues, $recommendations] = $this->score(
@@ -100,15 +109,19 @@ class SeoAnalyzer
         return $requested ?: ($keywords[0] ?? Str::lower(Str::words($title, 3, '')));
     }
 
-    private function metaTitle(string $title): string
+    private function metaTitle(string $title, string $focusKeyword): string
     {
         $title = Str::squish(strip_tags($title));
+        $focusKeyword = Str::squish(strip_tags($focusKeyword));
 
-        if (mb_strlen($title) < 30) {
-            $title .= ' | Güncel İlçe Haberleri';
+        if ($focusKeyword !== '' && ! Str::startsWith(Str::lower($title), Str::lower($focusKeyword))) {
+            $title = Str::ucfirst($focusKeyword).': '.$title;
         }
 
-        return Str::limit($title, 60, '');
+        $yearSuffix = ' | '.now()->year;
+        $title = Str::limit($title, 60 - mb_strlen($yearSuffix), '');
+
+        return $title.$yearSuffix;
     }
 
     private function keywordDensity(string $body, string $focusKeyword, int $wordCount): float

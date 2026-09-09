@@ -19,8 +19,9 @@ class SeoContentOptimizer
             ->toString();
         $summary = Str::limit($summarySource, 155, '');
 
-        if (! $this->hasHeading($body)) {
-            $body = $this->addHeading($body, $focusKeyword ?: $article->title);
+        $headingKeyword = $focusKeyword ?: $article->title;
+        if (! $this->hasHeading($body) || ! $this->headingContainsKeyword($body, $headingKeyword)) {
+            $body = $this->addHeading($body, $headingKeyword);
         }
 
         $body = $this->bodyFormatter->normalizeMarkdown($body);
@@ -36,6 +37,26 @@ class SeoContentOptimizer
     private function hasHeading(string $body): bool
     {
         return preg_match('/(?:^|\R)#{2,4}\s+|<h[2-4]\b/iu', $body) === 1;
+    }
+
+    private function headingContainsKeyword(string $body, string $focusKeyword): bool
+    {
+        $focusKeyword = Str::of(strip_tags($focusKeyword))->lower()->squish()->toString();
+
+        if ($focusKeyword === '') {
+            return true;
+        }
+
+        preg_match_all('/(?:^|\R)#{2,4}\s+([^\r\n]+)|<h[2-4][^>]*>(.*?)<\/h[2-4]>/iu', $body, $matches, PREG_SET_ORDER);
+
+        foreach ($matches as $match) {
+            $heading = Str::of(strip_tags((string) ($match[1] ?: ($match[2] ?? ''))))->lower()->squish()->toString();
+            if (Str::contains($heading, $focusKeyword)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function addHeading(string $body, string $focusKeyword): string

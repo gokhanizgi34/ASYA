@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Models\Article;
 use App\Services\SeoAnalyzer;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class SeoAnalyzerTest extends TestCase
@@ -20,7 +21,6 @@ class SeoAnalyzerTest extends TestCase
 
         $this->assertLessThan(60, $result['score']);
         $this->assertContains('Haber metni kısa.', $result['issues']);
-        $this->assertContains('Odak anahtar kelime SEO başlığında bulunmuyor.', $result['issues']);
         $this->assertContains('Odak anahtar kelime haber metninde bulunmuyor.', $result['issues']);
         $this->assertLessThan(10, $result['word_count']);
     }
@@ -44,6 +44,9 @@ class SeoAnalyzerTest extends TestCase
 
         $this->assertGreaterThanOrEqual(80, $result['score']);
         $this->assertSame('dijital yayıncılık', $result['focus_keyword']);
+        $this->assertStringStartsWith('dijital yayıncılık', Str::lower($result['meta_title']));
+        $this->assertMatchesRegularExpression('/\\b'.now()->year.'\\b/', $result['meta_title']);
+        $this->assertStringContainsString('dijital yayıncılık', Str::lower($result['meta_description']));
         $this->assertNotEmpty($result['keywords']);
         $this->assertNotEmpty($result['hashtags']);
         $this->assertGreaterThan(300, $result['word_count']);

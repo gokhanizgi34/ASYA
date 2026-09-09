@@ -93,7 +93,9 @@ class PublicationCreator
                     'disk' => $article->selectedVisualAsset->storage_disk,
                     'path' => $article->selectedVisualAsset->storage_path,
                     'title' => $article->selectedVisualAsset->title,
-                    'alt_text' => $article->selectedVisualAsset->alt_text,
+                    'alt_text' => Str::limit(Str::contains(Str::lower($article->title), Str::lower($article->seoAnalysis->focus_keyword))
+                        ? $article->title
+                        : Str::ucfirst($article->seoAnalysis->focus_keyword).' - '.$article->title, 125, ''),
                 ] : null,
             ],
             'queued_at' => now(),

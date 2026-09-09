@@ -18,8 +18,11 @@ class PublicationSeoRefresher
     public function refresh(Publication $publication, bool $dispatch = true): void
     {
         $publication->loadMissing(['article.seoAnalysis', 'article.selectedVisualAsset', 'publishingTarget']);
-        $article = $this->contentOptimizer->optimize($publication->article, $publication->article->title);
-        $seo = $this->seoAnalyzer->analyze($article);
+        $focusKeyword = $publication->article->seoAnalysis?->focus_keyword
+            ?: data_get($publication->article->editorial_metadata, 'focus_keyword')
+            ?: $this->seoAnalyzer->analyze($publication->article)['focus_keyword'];
+        $article = $this->contentOptimizer->optimize($publication->article, $focusKeyword);
+        $seo = $this->seoAnalyzer->analyze($article, $focusKeyword);
 
         SeoAnalysis::query()->updateOrCreate(
             ['article_id' => $article->id],
@@ -42,7 +45,9 @@ class PublicationSeoRefresher
 
         if (is_array(data_get($payload, 'media'))) {
             $payload['media']['title'] = $seo['meta_title'];
-            $payload['media']['alt_text'] = Str::limit($article->title, 125, '');
+            $payload['media']['alt_text'] = Str::limit(Str::contains(Str::lower($article->title), Str::lower($seo['focus_keyword']))
+                ? $article->title
+                : Str::ucfirst($seo['focus_keyword']).' - '.$article->title, 125, '');
         }
 
         $publication->forceFill([

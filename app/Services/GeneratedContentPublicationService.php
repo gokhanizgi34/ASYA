@@ -26,7 +26,7 @@ class GeneratedContentPublicationService
     ) {}
 
     /**
-     * @param  array{title:string,summary:string,body:string,keywords?:array<int,string>,hashtags?:array<int,string>,category:string,source_type:string,source_id:string|int,slug?:string,destination?:string,scheduled_for?:\DateTimeInterface|string,schedule_timezone?:string,uploaded_image?:UploadedFile}  $content
+     * @param  array{title:string,summary:string,body:string,focus_keyword?:string,keywords?:array<int,string>,hashtags?:array<int,string>,category:string,source_type:string,source_id:string|int,slug?:string,destination?:string,scheduled_for?:\DateTimeInterface|string,schedule_timezone?:string,uploaded_image?:UploadedFile}  $content
      */
     public function send(int $agencyId, User $creator, array $content): Article
     {
@@ -46,6 +46,7 @@ class GeneratedContentPublicationService
                     'content_type' => $content['source_type'],
                     'content_source_id' => (string) $content['source_id'],
                     'category' => $content['category'],
+                    'focus_keyword' => $content['focus_keyword'] ?? null,
                     'keywords' => $content['keywords'] ?? [],
                     'hashtags' => $content['hashtags'] ?? [],
                     'generation_mode' => 'text_only',
@@ -58,8 +59,9 @@ class GeneratedContentPublicationService
                 'failure_message' => null,
             ])->save();
 
-            $article = $this->seoContentOptimizer->optimize($article, $article->title);
-            $seo = $this->seoAnalyzer->analyze($article);
+            $focusKeyword = $content['focus_keyword'] ?? $this->seoAnalyzer->analyze($article)['focus_keyword'];
+            $article = $this->seoContentOptimizer->optimize($article, $focusKeyword);
+            $seo = $this->seoAnalyzer->analyze($article, $focusKeyword);
             $seo['keywords'] = collect([...(array) ($content['keywords'] ?? []), ...$seo['keywords']])->filter()->unique()->take(12)->values()->all();
             $seo['hashtags'] = collect([...(array) ($content['hashtags'] ?? []), ...$seo['hashtags']])->filter()->unique()->take(8)->values()->all();
 

@@ -60,6 +60,7 @@ class WordPressPublisher
         )->throw()->json();
 
         if (is_array($existing) && isset($existing[0]['id'])) {
+            $formattedContent = $this->formatContent($payload['content'], $publication);
             $post = $this->sendObserved(
                 $publication,
                 $apiUrl.'/posts/'.(int) $existing[0]['id'],
@@ -68,18 +69,24 @@ class WordPressPublisher
                 fn (): Response => $this->request($target->username, $target->credential)->post($apiUrl.'/posts/'.(int) $existing[0]['id'], [
                     'title' => $payload['title'],
                     'slug' => $payload['slug'],
-                    'content' => $this->formatContent($payload['content'], $publication),
+                    'content' => $formattedContent,
                     'excerpt' => $payload['excerpt'],
                     'status' => $publication->remote_status->value,
                     'meta' => $payload['meta'],
                 ]),
             )->throw()->json();
 
+            $rankMathSynced = $this->syncRankMathMetadata(
+                $publication,
+                (int) $existing[0]['id'],
+                $formattedContent,
+            );
+
             return [
                 'post_id' => (string) $existing[0]['id'],
                 'media_id' => $publication->remote_media_id,
                 'url' => $post['link'] ?? $existing[0]['link'] ?? null,
-                'response_meta' => ['driver' => 'rest', 'reused_existing_post' => true, 'updated_existing_post' => true],
+                'response_meta' => ['driver' => 'rest', 'reused_existing_post' => true, 'updated_existing_post' => true, 'rank_math_synced' => $rankMathSynced],
             ];
         }
 
@@ -91,10 +98,11 @@ class WordPressPublisher
             $publication->forceFill(['remote_media_id' => $mediaId])->save();
         }
 
+        $formattedContent = $this->formatContent($payload['content'], $publication);
         $postPayload = array_filter([
             'title' => $payload['title'],
             'slug' => $payload['slug'],
-            'content' => $this->formatContent($payload['content'], $publication),
+            'content' => $formattedContent,
             'excerpt' => $payload['excerpt'],
             'status' => $publication->remote_status->value,
             'featured_media' => $mediaId,
@@ -120,12 +128,58 @@ class WordPressPublisher
             throw new RuntimeException('WordPress geçerli bir yazı kimliği döndürmedi.');
         }
 
+        $rankMathSynced = $this->syncRankMathMetadata($publication, (int) $post['id'], $formattedContent);
+
         return [
             'post_id' => (string) $post['id'],
             'media_id' => $mediaId,
             'url' => $post['link'] ?? null,
-            'response_meta' => ['driver' => 'rest', 'reused_existing_post' => false],
+            'response_meta' => ['driver' => 'rest', 'reused_existing_post' => false, 'rank_math_synced' => $rankMathSynced],
         ];
+    }
+
+    private function syncRankMathMetadata(Publication $publication, int $postId, string $content): bool
+    {
+        $metadata = collect((array) data_get($publication->payload, 'meta', []))
+            ->filter(fn (mixed $value, string $key): bool => Str::startsWith($key, 'rank_math_') && filled($value))
+            ->map(fn (mixed $value): mixed => is_array($value) ? implode(',', $value) : $value)
+            ->all();
+
+        if ($metadata === []) {
+            return false;
+        }
+
+        $target = $publication->publishingTarget;
+        $endpoint = rtrim($target->base_url, '/').'/wp-json/rankmath/v1/updateMeta';
+        $response = $this->sendObserved(
+            $publication,
+            $endpoint,
+            HttpMethod::Post,
+            'Rank Math SEO alanlarını güncelleme',
+            fn (): Response => $this->request($target->username, $target->credential)->post($endpoint, [
+                'objectType' => 'post',
+                'objectID' => $postId,
+                'meta' => $metadata,
+                'content' => $content,
+            ]),
+        );
+
+        if ($response->status() === 404) {
+            Log::notice('WordPress hedefinde Rank Math updateMeta servisi bulunamadı.', [
+                'publication_id' => $publication->id,
+                'publishing_target_id' => $publication->publishing_target_id,
+            ]);
+
+            return false;
+        }
+
+        if (in_array($response->status(), [401, 403], true)) {
+            throw new RuntimeException('Rank Math SEO alanları kaydedilemedi. WordPress uygulama parolası Editör veya Yönetici yetkisine sahip olmalıdır.');
+        }
+
+        $response->throw();
+
+        return true;
     }
 
     /**
@@ -451,11 +505,66 @@ class WordPressPublisher
         $query = Str::of((string) $searchTerm)->ascii()->lower()->replaceMatches('/[^a-z0-9]+/', ' ')->squish()->replace(' ', '+')->toString();
         $searchUrl = rtrim($publication->publishingTarget->base_url, '/').'/?s='.($query ?: 'haber');
 
-        $formatted = $this->bodyFormatter->toHtml($content);
-
+        $formatted = $this->addTableOfContents($this->bodyFormatter->toHtml($content));
         $xVideoEmbed = $this->xVideoEmbed($publication);
+        $sourceReference = $this->sourceReference($publication);
 
-        return $formatted.($xVideoEmbed !== '' ? "\n".$xVideoEmbed : '')."\n".'<p><a href="'.e($searchUrl).'">'.e((string) $searchTerm).' haberleri</a></p>';
+        return $formatted
+            .($xVideoEmbed !== '' ? "\n".$xVideoEmbed : '')
+            .($sourceReference !== '' ? "\n".$sourceReference : '')
+            ."\n".'<p><a href="'.e($searchUrl).'">'.e((string) $searchTerm).' haberleri</a></p>';
+    }
+
+    private function addTableOfContents(string $html): string
+    {
+        $headings = [];
+        $usedIds = [];
+        $html = preg_replace_callback('/<h([2-4])([^>]*)>(.*?)<\/h\1>/isu', function (array $match) use (&$headings, &$usedIds): string {
+            $label = Str::of(html_entity_decode(strip_tags($match[3]), ENT_QUOTES | ENT_HTML5, 'UTF-8'))->squish()->toString();
+            $baseId = Str::slug($label) ?: 'haber-bolumu';
+            $id = $baseId;
+            $suffix = 2;
+
+            while (isset($usedIds[$id])) {
+                $id = $baseId.'-'.$suffix;
+                $suffix++;
+            }
+
+            $usedIds[$id] = true;
+            $headings[] = ['level' => (int) $match[1], 'id' => $id, 'label' => $label];
+            $attributes = preg_replace('/\s+id=(?:"[^"]*"|\'[^\']*\')/iu', '', $match[2]) ?? $match[2];
+
+            return '<h'.$match[1].$attributes.' id="'.e($id).'">'.$match[3].'</h'.$match[1].'>';
+        }, $html) ?? $html;
+
+        if (count($headings) < 2) {
+            return $html;
+        }
+
+        $items = collect($headings)->map(fn (array $heading): string => '<li class="asya-toc-level-'.$heading['level'].'"><a href="#'.e($heading['id']).'">'.e($heading['label']).'</a></li>')->implode('');
+        $tableOfContents = '<nav class="asya-table-of-contents" aria-label="İçindekiler" style="margin:1.5rem 0;padding:1rem 1.25rem;border:1px solid #e5e7eb;border-radius:8px">'
+            .'<p style="margin:0 0 .75rem"><strong>İçindekiler</strong></p><ul style="margin:0;padding-left:1.25rem">'.$items.'</ul></nav>';
+
+        return $tableOfContents."\n".$html;
+    }
+
+    private function sourceReference(Publication $publication): string
+    {
+        $sourceUrl = trim((string) $publication->article?->source_url);
+        $sourceHost = Str::lower((string) parse_url($sourceUrl, PHP_URL_HOST));
+        $targetHost = Str::lower((string) parse_url($publication->publishingTarget->base_url, PHP_URL_HOST));
+
+        if (! filter_var($sourceUrl, FILTER_VALIDATE_URL)
+            || ! in_array(Str::lower((string) parse_url($sourceUrl, PHP_URL_SCHEME)), ['http', 'https'], true)
+            || $sourceHost === ''
+            || $sourceHost === $targetHost
+            || in_array($sourceHost, ['x.com', 'www.x.com', 'twitter.com', 'www.twitter.com'], true)) {
+            return '';
+        }
+
+        $sourceName = Str::of((string) $publication->article?->source_name)->squish()->toString() ?: $sourceHost;
+
+        return '<p class="asya-source-reference"><strong>Kaynak:</strong> <a href="'.e($sourceUrl).'" target="_blank" rel="noopener">'.e($sourceName).'</a></p>';
     }
 
     private function xVideoEmbed(Publication $publication): string

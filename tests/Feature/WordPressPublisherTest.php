@@ -49,12 +49,84 @@ class WordPressPublisherTest extends TestCase
         $this->assertSame('91', $result['post_id']);
         $this->assertSame(45, $result['media_id']);
         $this->assertSame(45, $publication->fresh()->remote_media_id);
-        Http::assertSent(fn (Request $request): bool => $request->method() === 'POST' && str_ends_with($request->url(), '/posts') && str_contains((string) data_get($request->data(), 'content'), '<h2 style="margin:2rem 0 0.875rem;line-height:1.35">Güvenli başlık</h2>') && str_contains((string) data_get($request->data(), 'content'), '&lt;script&gt;') && ! str_contains((string) data_get($request->data(), 'content'), '<script>'));
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'POST' && str_ends_with($request->url(), '/posts') && str_contains((string) data_get($request->data(), 'content'), '<h2 style="margin:2rem 0 0.875rem;line-height:1.35" id="guvenli-baslik">Güvenli başlık</h2>') && str_contains((string) data_get($request->data(), 'content'), '&lt;script&gt;') && ! str_contains((string) data_get($request->data(), 'content'), '<script>'));
         Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
             && str_ends_with($request->url(), '/posts')
             && str_contains((string) data_get($request->data(), 'content'), 'https://news.example.com/?s='));
         Http::assertSentCount(3);
         $this->assertDatabaseHas('learned_routes', ['agency_id' => $publication->agency_id, 'path_pattern' => '/wp-json/wp/v2/posts', 'method' => 'POST', 'successful_count' => 1]);
+    }
+
+    public function test_rest_driver_persists_rank_math_metadata_through_the_plugin_endpoint(): void
+    {
+        Storage::fake('public');
+        Storage::disk('public')->put('visuals/test.jpg', 'image-content');
+        $publication = $this->publication([
+            'meta' => [
+                'asya_focus_keyword' => 'pendik sahili',
+                'rank_math_title' => 'Pendik Sahili Yenilendi | 2026',
+                'rank_math_description' => 'Pendik sahilindeki yenileme çalışmasının kapsamı ve vatandaşları ilgilendiren ayrıntılar açıklandı.',
+                'rank_math_focus_keyword' => 'pendik sahili',
+            ],
+        ]);
+        Http::preventStrayRequests();
+        Http::fake(function (Request $request) {
+            if ($request->method() === 'GET') {
+                return Http::response([]);
+            }
+            if (str_ends_with($request->url(), '/media')) {
+                return Http::response(['id' => 45], 201);
+            }
+            if (str_ends_with($request->url(), '/rankmath/v1/updateMeta')) {
+                return Http::response(['success' => true]);
+            }
+
+            return Http::response(['id' => 91, 'link' => 'https://news.example.com/test-haberi'], 201);
+        });
+
+        $result = app(WordPressPublisher::class)->publish($publication);
+
+        $this->assertTrue($result['response_meta']['rank_math_synced']);
+        Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/rankmath/v1/updateMeta')
+            && data_get($request->data(), 'objectType') === 'post'
+            && data_get($request->data(), 'objectID') === 91
+            && data_get($request->data(), 'meta.rank_math_focus_keyword') === 'pendik sahili'
+            && data_get($request->data(), 'meta.rank_math_title') === 'Pendik Sahili Yenilendi | 2026'
+            && filled(data_get($request->data(), 'content')));
+        Http::assertSentCount(4);
+    }
+
+    public function test_rest_driver_adds_semantic_table_of_contents_and_real_source_link(): void
+    {
+        Storage::fake('public');
+        Storage::disk('public')->put('visuals/test.jpg', 'image-content');
+        $publication = $this->publication([
+            'content' => "## Pendik Sahili\n\nİlk gelişme.\n\n## Çalışmanın Ayrıntıları\n\nİkinci gelişme.",
+        ]);
+        $publication->article->update([
+            'source_name' => 'Pendik Belediyesi',
+            'source_url' => 'https://www.pendik.bel.tr/tr/haber/sahil-yenileme',
+        ]);
+        Http::preventStrayRequests();
+        Http::fake(function (Request $request) {
+            if ($request->method() === 'GET') {
+                return Http::response([]);
+            }
+            if (str_ends_with($request->url(), '/media')) {
+                return Http::response(['id' => 45], 201);
+            }
+
+            return Http::response(['id' => 91, 'link' => 'https://news.example.com/test-haberi'], 201);
+        });
+
+        app(WordPressPublisher::class)->publish($publication);
+
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
+            && str_ends_with($request->url(), '/posts')
+            && str_contains((string) data_get($request->data(), 'content'), 'class="asya-table-of-contents"')
+            && str_contains((string) data_get($request->data(), 'content'), 'href="#pendik-sahili"')
+            && str_contains((string) data_get($request->data(), 'content'), 'https://www.pendik.bel.tr/tr/haber/sahil-yenileme')
+            && str_contains((string) data_get($request->data(), 'content'), 'rel="noopener"'));
     }
 
     public function test_rest_driver_embeds_only_the_x_video_player_without_the_tweet_frame(): void

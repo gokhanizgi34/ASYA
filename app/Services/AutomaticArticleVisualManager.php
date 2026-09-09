@@ -25,6 +25,7 @@ class AutomaticArticleVisualManager
         private readonly ExternalUrlGuard $urlGuard,
         private readonly NativeTlsHttpFetcher $nativeTlsHttpFetcher,
         private readonly SystemSettings $settings,
+        private readonly HeadlineImageFormatter $headlineImageFormatter,
     ) {}
 
     public function ensure(
@@ -581,7 +582,7 @@ class AutomaticArticleVisualManager
 
     private function imagePrompt(Article $article): string
     {
-        return 'Türkçe haber sitesi için yatay, fotogerçekçi ve profesyonel kapak görseli üret. '
+        return 'Türkçe haber sitesi için 25:13 manşet oranına uygun, yatay, fotogerçekçi ve profesyonel kapak görseli üret. '
             .'Görselde yazı, logo, filigran veya yanıltıcı ayrıntı kullanma. Haber başlığı: '
             .$article->title.'. Haber özeti: '.Str::limit((string) $article->summary, 500, '');
     }
@@ -597,6 +598,11 @@ class AutomaticArticleVisualManager
     ): VisualAsset {
         if ($bytes === '' || strlen($bytes) > 20 * 1024 * 1024) {
             throw new RuntimeException('Haber görseli boş veya 20 MB sınırını aşıyor.');
+        }
+
+        $bytes = $this->headlineImageFormatter->format($bytes);
+        if (strlen($bytes) > 20 * 1024 * 1024) {
+            throw new RuntimeException('İşlenen manşet görseli 20 MB sınırını aşıyor.');
         }
 
         $info = @getimagesizefromstring($bytes);

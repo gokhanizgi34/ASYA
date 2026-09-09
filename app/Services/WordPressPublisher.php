@@ -24,6 +24,7 @@ class WordPressPublisher
         private readonly DistrictCategoryResolver $districtCategoryResolver,
         private readonly XVideoFeaturedImageBadge $xVideoFeaturedImageBadge,
         private readonly ArticleBodyFormatter $bodyFormatter,
+        private readonly HeadlineImageFormatter $headlineImageFormatter,
     ) {}
 
     /** @return array{post_id: string, media_id: int|null, url: string|null, response_meta: array<string, mixed>} */
@@ -484,6 +485,7 @@ class WordPressPublisher
     private function mediaBytes(Publication $publication, array $media): string
     {
         $bytes = (string) Storage::disk($media['disk'])->get($media['path']);
+        $bytes = $this->headlineImageFormatter->format($bytes);
 
         return $this->xVideoFeaturedImageBadge->apply($bytes, (string) $publication->article?->source_url);
     }

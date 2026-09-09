@@ -141,6 +141,9 @@ class AutomaticArticlePublisherTest extends TestCase
         $this->assertSame(VisualSourceType::Original, $visual->source_type);
         $this->assertTrue($visual->is_selected);
         Storage::disk('public')->assertExists($visual->storage_path);
+        $storedImage = getimagesizefromstring((string) Storage::disk('public')->get($visual->storage_path));
+        $this->assertSame(1250, $storedImage[0] ?? null);
+        $this->assertSame(650, $storedImage[1] ?? null);
         Http::assertSent(fn (Request $request): bool => data_get($request->header('Referer'), '0') === $sourcePageUrl);
     }
 

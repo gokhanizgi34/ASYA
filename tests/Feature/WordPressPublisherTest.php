@@ -235,7 +235,7 @@ class WordPressPublisherTest extends TestCase
 
         $this->assertSame('77', $result['post_id']);
         $this->assertSame(45, $result['media_id']);
-        $this->assertSame('1250x650', $result['response_meta']['headline_image_format']);
+        $this->assertSame('1250x650-v2', $result['response_meta']['headline_image_format']);
         $this->assertTrue($result['response_meta']['reused_existing_post']);
         $this->assertTrue($result['response_meta']['updated_existing_post']);
         Http::assertSent(fn (Request $request): bool => $request->method() === 'GET'
@@ -259,7 +259,7 @@ class WordPressPublisherTest extends TestCase
         $publication->forceFill([
             'remote_status' => RemotePublicationStatus::Publish,
             'remote_media_id' => 45,
-            'response_meta' => ['headline_image_format' => '1250x650'],
+            'response_meta' => ['headline_image_format' => '1250x650-v2'],
         ])->save();
         Http::preventStrayRequests();
         Http::fake(function (Request $request) {
@@ -273,7 +273,7 @@ class WordPressPublisherTest extends TestCase
         $result = app(WordPressPublisher::class)->publish($publication);
 
         $this->assertSame(45, $result['media_id']);
-        $this->assertSame('1250x650', $result['response_meta']['headline_image_format']);
+        $this->assertSame('1250x650-v2', $result['response_meta']['headline_image_format']);
         Http::assertNotSent(fn (Request $request): bool => str_ends_with($request->url(), '/media'));
         Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/posts/77')
             && data_get($request->data(), 'featured_media') === 45);

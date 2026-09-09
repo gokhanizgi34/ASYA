@@ -19,6 +19,8 @@ use RuntimeException;
 
 class WordPressPublisher
 {
+    private const HEADLINE_IMAGE_FORMAT = '1250x650-v2';
+
     public function __construct(
         private readonly RouteMethodLearner $routeMethodLearner,
         private readonly DistrictCategoryResolver $districtCategoryResolver,
@@ -63,7 +65,7 @@ class WordPressPublisher
         if (is_array($existing) && isset($existing[0]['id'])) {
             $media = data_get($payload, 'media');
             $responseMeta = (array) ($publication->response_meta ?? []);
-            $headlineImageFormat = '1250x650';
+            $headlineImageFormat = self::HEADLINE_IMAGE_FORMAT;
             $shouldRefreshHeadlineMedia = is_array($media)
                 && data_get($responseMeta, 'headline_image_format') !== $headlineImageFormat;
             $mediaId = $publication->remote_media_id;
@@ -158,7 +160,7 @@ class WordPressPublisher
                 'driver' => 'rest',
                 'reused_existing_post' => false,
                 'rank_math_synced' => $rankMathSynced,
-                'headline_image_format' => is_array($media) ? '1250x650' : null,
+                'headline_image_format' => is_array($media) ? self::HEADLINE_IMAGE_FORMAT : null,
             ], static fn (mixed $value): bool => $value !== null),
         ];
     }

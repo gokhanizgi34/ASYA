@@ -96,7 +96,7 @@ class WordPressPublisherTest extends TestCase
         Http::assertSentCount(4);
     }
 
-    public function test_rest_driver_adds_semantic_table_of_contents_and_real_source_link(): void
+    public function test_rest_driver_adds_semantic_table_of_contents_without_source_reference(): void
     {
         Storage::fake('public');
         Storage::disk('public')->put('visuals/test.jpg', 'image-content');
@@ -125,8 +125,8 @@ class WordPressPublisherTest extends TestCase
             && str_ends_with($request->url(), '/posts')
             && str_contains((string) data_get($request->data(), 'content'), 'class="asya-table-of-contents"')
             && str_contains((string) data_get($request->data(), 'content'), 'href="#pendik-sahili"')
-            && str_contains((string) data_get($request->data(), 'content'), 'https://www.pendik.bel.tr/tr/haber/sahil-yenileme')
-            && str_contains((string) data_get($request->data(), 'content'), 'rel="noopener"'));
+            && ! str_contains((string) data_get($request->data(), 'content'), 'https://www.pendik.bel.tr/tr/haber/sahil-yenileme')
+            && ! str_contains((string) data_get($request->data(), 'content'), '<strong>Kaynak:</strong>'));
     }
 
     public function test_rest_driver_embeds_only_the_x_video_player_without_the_tweet_frame(): void

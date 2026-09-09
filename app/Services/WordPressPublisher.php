@@ -533,11 +533,9 @@ class WordPressPublisher
 
         $formatted = $this->addTableOfContents($this->bodyFormatter->toHtml($content));
         $xVideoEmbed = $this->xVideoEmbed($publication);
-        $sourceReference = $this->sourceReference($publication);
 
         return $formatted
             .($xVideoEmbed !== '' ? "\n".$xVideoEmbed : '')
-            .($sourceReference !== '' ? "\n".$sourceReference : '')
             ."\n".'<p><a href="'.e($searchUrl).'">'.e((string) $searchTerm).' haberleri</a></p>';
     }
 
@@ -572,25 +570,6 @@ class WordPressPublisher
             .'<p style="margin:0 0 .75rem"><strong>İçindekiler</strong></p><ul style="margin:0;padding-left:1.25rem">'.$items.'</ul></nav>';
 
         return $tableOfContents."\n".$html;
-    }
-
-    private function sourceReference(Publication $publication): string
-    {
-        $sourceUrl = trim((string) $publication->article?->source_url);
-        $sourceHost = Str::lower((string) parse_url($sourceUrl, PHP_URL_HOST));
-        $targetHost = Str::lower((string) parse_url($publication->publishingTarget->base_url, PHP_URL_HOST));
-
-        if (! filter_var($sourceUrl, FILTER_VALIDATE_URL)
-            || ! in_array(Str::lower((string) parse_url($sourceUrl, PHP_URL_SCHEME)), ['http', 'https'], true)
-            || $sourceHost === ''
-            || $sourceHost === $targetHost
-            || in_array($sourceHost, ['x.com', 'www.x.com', 'twitter.com', 'www.twitter.com'], true)) {
-            return '';
-        }
-
-        $sourceName = Str::of((string) $publication->article?->source_name)->squish()->toString() ?: $sourceHost;
-
-        return '<p class="asya-source-reference"><strong>Kaynak:</strong> <a href="'.e($sourceUrl).'" target="_blank" rel="noopener">'.e($sourceName).'</a></p>';
     }
 
     private function xVideoEmbed(Publication $publication): string

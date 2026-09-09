@@ -61,20 +61,33 @@ class WordPressPublisher
         )->throw()->json();
 
         if (is_array($existing) && isset($existing[0]['id'])) {
+            $media = data_get($payload, 'media');
+            $responseMeta = (array) ($publication->response_meta ?? []);
+            $headlineImageFormat = '1250x650';
+            $shouldRefreshHeadlineMedia = is_array($media)
+                && data_get($responseMeta, 'headline_image_format') !== $headlineImageFormat;
+            $mediaId = $publication->remote_media_id;
+
+            if ($shouldRefreshHeadlineMedia) {
+                $mediaId = $this->uploadRestMedia($publication, $request, $apiUrl, $media);
+                $publication->forceFill(['remote_media_id' => $mediaId])->save();
+            }
+
             $formattedContent = $this->formatContent($payload['content'], $publication);
             $post = $this->sendObserved(
                 $publication,
                 $apiUrl.'/posts/'.(int) $existing[0]['id'],
                 HttpMethod::Post,
                 'WordPress yazısı güncelleme',
-                fn (): Response => $this->request($target->username, $target->credential)->post($apiUrl.'/posts/'.(int) $existing[0]['id'], [
+                fn (): Response => $this->request($target->username, $target->credential)->post($apiUrl.'/posts/'.(int) $existing[0]['id'], array_filter([
                     'title' => $payload['title'],
                     'slug' => $payload['slug'],
                     'content' => $formattedContent,
                     'excerpt' => $payload['excerpt'],
                     'status' => $publication->remote_status->value,
+                    'featured_media' => $mediaId,
                     'meta' => $payload['meta'],
-                ]),
+                ], static fn (mixed $value): bool => $value !== null && $value !== [] && $value !== '')),
             )->throw()->json();
 
             $rankMathSynced = $this->syncRankMathMetadata(
@@ -85,9 +98,15 @@ class WordPressPublisher
 
             return [
                 'post_id' => (string) $existing[0]['id'],
-                'media_id' => $publication->remote_media_id,
+                'media_id' => $mediaId,
                 'url' => $post['link'] ?? $existing[0]['link'] ?? null,
-                'response_meta' => ['driver' => 'rest', 'reused_existing_post' => true, 'updated_existing_post' => true, 'rank_math_synced' => $rankMathSynced],
+                'response_meta' => array_filter([
+                    'driver' => 'rest',
+                    'reused_existing_post' => true,
+                    'updated_existing_post' => true,
+                    'rank_math_synced' => $rankMathSynced,
+                    'headline_image_format' => is_array($media) ? $headlineImageFormat : null,
+                ], static fn (mixed $value): bool => $value !== null),
             ];
         }
 
@@ -135,7 +154,12 @@ class WordPressPublisher
             'post_id' => (string) $post['id'],
             'media_id' => $mediaId,
             'url' => $post['link'] ?? null,
-            'response_meta' => ['driver' => 'rest', 'reused_existing_post' => false, 'rank_math_synced' => $rankMathSynced],
+            'response_meta' => array_filter([
+                'driver' => 'rest',
+                'reused_existing_post' => false,
+                'rank_math_synced' => $rankMathSynced,
+                'headline_image_format' => is_array($media) ? '1250x650' : null,
+            ], static fn (mixed $value): bool => $value !== null),
         ];
     }
 

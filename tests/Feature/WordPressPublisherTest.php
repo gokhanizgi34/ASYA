@@ -216,8 +216,51 @@ class WordPressPublisherTest extends TestCase
     public function test_rest_driver_updates_existing_slug_without_creating_a_duplicate(): void
     {
         Storage::fake('public');
+        Storage::disk('public')->put('visuals/test.jpg', 'image-content');
         $publication = $this->publication();
         $publication->forceFill(['remote_status' => RemotePublicationStatus::Publish])->save();
+        Http::preventStrayRequests();
+        Http::fake(function (Request $request) {
+            if ($request->method() === 'GET') {
+                return Http::response([['id' => 77, 'link' => 'https://news.example.com/existing']]);
+            }
+            if (str_ends_with($request->url(), '/media')) {
+                return Http::response(['id' => 45], 201);
+            }
+
+            return Http::response(['id' => 77, 'link' => 'https://news.example.com/existing']);
+        });
+
+        $result = app(WordPressPublisher::class)->publish($publication);
+
+        $this->assertSame('77', $result['post_id']);
+        $this->assertSame(45, $result['media_id']);
+        $this->assertSame('1250x650', $result['response_meta']['headline_image_format']);
+        $this->assertTrue($result['response_meta']['reused_existing_post']);
+        $this->assertTrue($result['response_meta']['updated_existing_post']);
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'GET'
+            && data_get($request->data(), 'status') === 'publish'
+            && data_get($request->data(), 'context') === 'view');
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
+            && str_ends_with($request->url(), '/media'));
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
+            && str_ends_with($request->url(), '/posts/77')
+            && data_get($request->data(), 'featured_media') === 45
+            && str_contains((string) data_get($request->data(), 'content'), 'https://news.example.com/?s='));
+        Http::assertSentCount(3);
+        $this->assertDatabaseHas('learned_routes', ['agency_id' => $publication->agency_id, 'path_pattern' => '/wp-json/wp/v2/posts', 'method' => 'GET', 'successful_count' => 1]);
+    }
+
+    public function test_existing_post_does_not_upload_an_already_formatted_headline_image_again(): void
+    {
+        Storage::fake('public');
+        Storage::disk('public')->put('visuals/test.jpg', 'image-content');
+        $publication = $this->publication();
+        $publication->forceFill([
+            'remote_status' => RemotePublicationStatus::Publish,
+            'remote_media_id' => 45,
+            'response_meta' => ['headline_image_format' => '1250x650'],
+        ])->save();
         Http::preventStrayRequests();
         Http::fake(function (Request $request) {
             if ($request->method() === 'GET') {
@@ -229,17 +272,12 @@ class WordPressPublisherTest extends TestCase
 
         $result = app(WordPressPublisher::class)->publish($publication);
 
-        $this->assertSame('77', $result['post_id']);
-        $this->assertTrue($result['response_meta']['reused_existing_post']);
-        $this->assertTrue($result['response_meta']['updated_existing_post']);
-        Http::assertSent(fn (Request $request): bool => $request->method() === 'GET'
-            && data_get($request->data(), 'status') === 'publish'
-            && data_get($request->data(), 'context') === 'view');
-        Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
-            && str_ends_with($request->url(), '/posts/77')
-            && str_contains((string) data_get($request->data(), 'content'), 'https://news.example.com/?s='));
+        $this->assertSame(45, $result['media_id']);
+        $this->assertSame('1250x650', $result['response_meta']['headline_image_format']);
+        Http::assertNotSent(fn (Request $request): bool => str_ends_with($request->url(), '/media'));
+        Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/posts/77')
+            && data_get($request->data(), 'featured_media') === 45);
         Http::assertSentCount(2);
-        $this->assertDatabaseHas('learned_routes', ['agency_id' => $publication->agency_id, 'path_pattern' => '/wp-json/wp/v2/posts', 'method' => 'GET', 'successful_count' => 1]);
     }
 
     public function test_xml_rpc_driver_uploads_media_and_creates_post(): void
